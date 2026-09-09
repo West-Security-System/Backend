@@ -1,34 +1,34 @@
-# Reporte metodológico - Backend Issue B01
+# Reporte metodológico - Backend Issue B02
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B01-init`
+- Backend: `feature/backend-issue-B02-contract-errors`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
-## Registro de commits sugeridos
+## Registro de commit sugerido
 
-- `feat(server): inicializar API B01 con health, entorno y CORS`
+- `feat(server): unificar respuestas y manejo global de errores B02`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): inicializar servidor API`
+`feat(backend): establecer contrato de respuestas y errores`
 
 ### Referencia de cierre
 
-`Fixes backend#B01`
+`Fixes backend#B02`
 
 ### Resumen
 
-Se agrega un servidor Node.js/Express ejecutable con puerto, versión y origen CORS configurables mediante variables de entorno. También se incorpora `GET /api/health`, que devuelve el estado `ok` y la versión de la API.
+Se extiende el backend B01 con un formato JSON único para respuestas exitosas y errores, middleware global para códigos HTTP estándar y ocultamiento de stack traces fuera de desarrollo.
 
 ### Checklist
 
-- [ ] `npm install` completa la instalación.
-- [ ] `npm run dev` inicia el servidor en modo desarrollo.
-- [ ] `npm start` inicia el servidor.
-- [ ] `GET /api/health` devuelve estado y versión.
-- [ ] CORS utiliza `CORS_ORIGIN`.
-- [ ] No se agregaron bases de datos, tablas ni modelos.
-- [ ] La raíz de `v01-issue-B01` contiene únicamente `west-security-backend/`.
+- [ ] Las respuestas exitosas usan `{ data, error: null }`.
+- [ ] Los errores usan `{ data: null, error }`.
+- [ ] El middleware contempla 400, 401, 403, 404, 409, 422 y 500.
+- [ ] Los campos inválidos pueden informarse en `error.fields`.
+- [ ] El stack trace solo aparece con `NODE_ENV=development`.
+- [ ] No se agregaron autenticación, bases de datos, tablas ni modelos.
+- [ ] La raíz de `v02-issue-B02` contiene únicamente `west-security-backend/`.

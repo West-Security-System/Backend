@@ -1,6 +1,6 @@
 {
-  "name": "west-security-backend-issue-b01",
-  "version": "0.1.0",
+  "name": "west-security-backend-issue-b02",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "node --watch src/server.js",
