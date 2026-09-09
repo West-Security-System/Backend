@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const cors = require('cors');
 const express = require('express');
+const { initDatabase, closeDatabase } = require('./db');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -59,6 +60,20 @@ app.use((error, req, res, next) => {
   res.status(status).json({ data: null, error: responseError });
 });
 
-app.listen(port, () => {
-  console.log(`West Security API listening on port ${port}`);
+initDatabase().then(() => {
+  const server = app.listen(port, () => {
+    console.log(`West Security API listening on port ${port}`);
+  });
+
+  const shutdown = async () => {
+    server.close();
+    await closeDatabase();
+    process.exit(0);
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+}).catch((error) => {
+  console.error(`Database initialization failed: ${error.message}`);
+  process.exitCode = 1;
 });

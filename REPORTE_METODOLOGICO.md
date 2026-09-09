@@ -1,19 +1,19 @@
-# Reporte metodológico - Backend Issue B02
+# Reporte metodológico - Backend Issue B03
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B02-contract-errors`
+- Backend: `feature/backend-issue-B03-sqlite-migrations`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(server): unificar respuestas y manejo global de errores B02`
+- `feat(database): agregar SQLite y migraciones idempotentes B03`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): establecer contrato de respuestas y errores`
+`feat(backend): agregar persistencia SQLite inicial`
 
 ### Referencia de cierre
 
@@ -21,14 +21,13 @@
 
 ### Resumen
 
-Se extiende el backend B01 con un formato JSON único para respuestas exitosas y errores, middleware global para códigos HTTP estándar y ocultamiento de stack traces fuera de desarrollo.
+Se extiende el backend B02 con persistencia SQLite en `data/west_control.db`, claves foráneas activadas, migraciones idempotentes y arranque bloqueado ante fallos de persistencia.
 
 ### Checklist
 
-- [ ] Las respuestas exitosas usan `{ data, error: null }`.
-- [ ] Los errores usan `{ data: null, error }`.
-- [ ] El middleware contempla 400, 401, 403, 404, 409, 422 y 500.
-- [ ] Los campos inválidos pueden informarse en `error.fields`.
-- [ ] El stack trace solo aparece con `NODE_ENV=development`.
-- [ ] No se agregaron autenticación, bases de datos, tablas ni modelos.
-- [ ] La raíz de `v02-issue-B02` contiene únicamente `west-security-backend/`.
+- [ ] Se crea o carga `data/west_control.db`.
+- [ ] Las claves foráneas están activadas.
+- [ ] Las migraciones pueden ejecutarse varias veces sin duplicar tablas ni datos base.
+- [ ] Un fallo de persistencia detiene el servidor con un mensaje limpio.
+- [ ] No se agregaron endpoints de usuarios ni autenticación.
+- [ ] La raíz de `v03-issue-B03` contiene únicamente `west-security-backend/`.
