@@ -35,6 +35,17 @@ async function initDatabase() {
       VALUES ('database_name', 'west_control');
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (1);
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        rol TEXT NOT NULL CHECK (rol IN ('admin', 'guardia')),
+        bloqueado INTEGER NOT NULL DEFAULT 0 CHECK (bloqueado IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (2);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -44,6 +55,35 @@ async function initDatabase() {
   }
 }
 
+function insertUser({ username, passwordHash, rol }) {
+  try {
+    database.run(`
+      INSERT INTO usuarios (username, password_hash, rol)
+      VALUES (?, ?, ?)
+    `, [username, passwordHash, rol]);
+    saveDatabase();
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed: usuarios.username')) {
+      const duplicateError = new Error('El username ya está registrado.');
+      duplicateError.code = 'USERNAME_TAKEN';
+      duplicateError.status = 409;
+      throw duplicateError;
+    }
+    throw error;
+  }
+}
+
+function findUserByUsername(username) {
+  const statement = database.prepare(`
+    SELECT id, username, password_hash, rol, bloqueado, created_at, updated_at
+    FROM usuarios WHERE username = ?
+  `);
+  statement.bind([username]);
+  const user = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return user;
+}
+
 async function closeDatabase() {
   if (!database) return;
   saveDatabase();
@@ -51,4 +91,4 @@ async function closeDatabase() {
   database = undefined;
 }
 
-module.exports = { initDatabase, closeDatabase };
+module.exports = { initDatabase, closeDatabase, insertUser, findUserByUsername };
