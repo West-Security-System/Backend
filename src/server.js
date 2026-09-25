@@ -2,7 +2,16 @@ require('dotenv').config();
 
 const express = require('express');
 const session = require('express-session');
-const { initDatabase, closeDatabase, findUserByUsername, findUserById } = require('./db');
+const {
+  initDatabase,
+  closeDatabase,
+  findUserByUsername,
+  findUserById,
+  listUsers,
+  insertUser,
+  updateUserById,
+  deleteUserById
+} = require('./db');
 const bcrypt = require('bcryptjs');
 
 const app = express();
@@ -11,12 +20,24 @@ const version = process.env.APP_VERSION || '0.1.0';
 const isDevelopment = process.env.NODE_ENV === 'development';
 const sessionMaxAge = Number(process.env.SESSION_MAX_AGE_MS || 86400000);
 const cookieSecure = process.env.COOKIE_SECURE === 'true';
-const allowedClientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5500';
+const allowedClientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const allowedRoles = new Set(['admin', 'guardia']);
 
 const supportedStatuses = new Set([400, 401, 403, 404, 409, 422, 500]);
 
 function sendSuccess(res, data, status = 200) {
   res.status(status).json({ data, error: null });
+}
+
+function sanitizeUser(user) {
+  if (!user) return null;
+  const safeUser = { ...user };
+  delete safeUser.password_hash;
+  return safeUser;
+}
+
+function sanitizeUsers(users) {
+  return users.map(sanitizeUser);
 }
 
 function createApiError(status, code, message, fields) {
@@ -125,6 +146,116 @@ app.get('/api/admin/dashboard', requiereAuth, requiereAdmin, (req, res) => {
       access: 'granted'
     }
   });
+});
+
+app.get('/api/admin/usuarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const usuarios = sanitizeUsers(listUsers());
+    sendSuccess(res, { usuarios });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/usuarios', requiereAuth, requiereAdmin, async (req, res, next) => {
+  const { username, password, rol, bloqueado } = req.body || {};
+
+  try {
+    if (!username || !password || !rol) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'username, password y rol son obligatorios.', ['username', 'password', 'rol']));
+    }
+
+    if (!allowedRoles.has(rol)) {
+      return next(createApiError(422, 'INVALID_ROLE', 'El rol debe ser admin o guardia.', ['rol']));
+    }
+
+    const normalizedUsername = String(username).trim();
+    if (!normalizedUsername) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El username no puede estar vacío.', ['username']));
+    }
+
+    if (findUserByUsername(normalizedUsername)) {
+      return next(createApiError(409, 'USERNAME_TAKEN', 'El username ya está registrado.', ['username']));
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 12);
+    const createdUser = insertUser({
+      username: normalizedUsername,
+      passwordHash,
+      rol,
+      bloqueado: bloqueado === true || bloqueado === 1 || bloqueado === '1' ? 1 : 0
+    });
+
+    sendSuccess(res, { usuario: sanitizeUser(createdUser) }, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/usuarios', requiereAuth, requiereAdmin, async (req, res, next) => {
+  const { id, username, password, rol, bloqueado } = req.body || {};
+
+  try {
+    const userId = Number(id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El id del usuario es obligatorio y debe ser válido.', ['id']));
+    }
+
+    const currentUser = findUserById(userId);
+    if (!currentUser) {
+      return next(createApiError(404, 'USER_NOT_FOUND', 'Usuario no encontrado.'));
+    }
+
+    const nextUsername = username !== undefined && String(username).trim() ? String(username).trim() : currentUser.username;
+    if (!nextUsername) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El username no puede estar vacío.', ['username']));
+    }
+
+    const nextRol = rol !== undefined ? rol : currentUser.rol;
+    if (!allowedRoles.has(nextRol)) {
+      return next(createApiError(422, 'INVALID_ROLE', 'El rol debe ser admin o guardia.', ['rol']));
+    }
+
+    const duplicateUser = findUserByUsername(nextUsername);
+    if (duplicateUser && duplicateUser.id !== userId) {
+      return next(createApiError(409, 'USERNAME_TAKEN', 'El username ya está registrado.', ['username']));
+    }
+
+    const passwordHash = password !== undefined && String(password).length > 0
+      ? await bcrypt.hash(String(password), 12)
+      : currentUser.password_hash;
+    const nextBlocked = bloqueado !== undefined ? Number(Boolean(bloqueado)) : Number(Boolean(currentUser.bloqueado));
+
+    const updatedUser = updateUserById(userId, {
+      username: nextUsername,
+      passwordHash,
+      rol: nextRol,
+      bloqueado: nextBlocked
+    });
+
+    sendSuccess(res, { usuario: sanitizeUser(updatedUser) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/usuarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  const userId = Number(req.body?.id ?? req.query?.id);
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return next(createApiError(422, 'VALIDATION_ERROR', 'El id del usuario es obligatorio y debe ser válido.', ['id']));
+  }
+
+  if (userId === Number(req.session.userId)) {
+    return next(createApiError(403, 'SELF_DELETE_FORBIDDEN', 'No puedes eliminarte a ti mismo como administrador.'));
+  }
+
+  try {
+    const user = deleteUserById(userId);
+    sendSuccess(res, { eliminado: sanitizeUser(user) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/logout', (req, res, next) => {
