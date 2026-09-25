@@ -84,6 +84,17 @@ function findUserByUsername(username) {
   return user;
 }
 
+function findUserById(id) {
+  const statement = database.prepare(`
+    SELECT id, username, rol, bloqueado, created_at, updated_at
+    FROM usuarios WHERE id = ?
+  `);
+  statement.bind([id]);
+  const user = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return user;
+}
+
 async function closeDatabase() {
   if (!database) return;
   saveDatabase();
@@ -91,4 +102,4 @@ async function closeDatabase() {
   database = undefined;
 }
 
-module.exports = { initDatabase, closeDatabase, insertUser, findUserByUsername };
+module.exports = { initDatabase, closeDatabase, insertUser, findUserByUsername, findUserById };

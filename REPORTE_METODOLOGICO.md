@@ -1,33 +1,33 @@
-# Reporte metodológico - Backend Issue B05
+# Reporte metodológico - Backend Issue B06
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B05-login-session`
+- Backend: `feature/backend-issue-B06-me-logout`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(auth): implementar login y sesión HttpOnly B05`
+- `feat(auth): agregar usuario actual y logout idempotente B06`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): autenticar usuarios con sesión segura`
+`feat(backend): consultar sesión actual y cerrar sesión`
 
 ### Referencia de cierre
 
-`Fixes backend#B05`
+`Fixes backend#B06`
 
 ### Resumen
 
-Se extiende el backend B04 con `POST /api/login`, comparación bcrypt y cookie de sesión HttpOnly con `SameSite=Lax`, expiración configurable y seguridad configurable para desarrollo/producción.
+Se extiende el backend B05 con `GET /api/me` y `POST /api/logout`. El perfil devuelve únicamente id, username y rol; logout destruye la sesión y limpia la cookie de forma idempotente.
 
 ### Checklist
 
-- [ ] `POST /api/login` valida username y password con bcrypt.
-- [ ] Credenciales inválidas responden 401 genérico.
-- [ ] La cookie es HttpOnly, SameSite=Lax y tiene expiración configurable.
-- [ ] La respuesta no devuelve password ni password_hash.
-- [ ] No se agregaron logout ni middlewares de protección de rutas.
-- [ ] La raíz de `v05-issue-B05` contiene únicamente `west-security-backend/`.
+- [ ] `GET /api/me` devuelve el perfil de la sesión actual sin datos sensibles.
+- [ ] `/api/me` responde 401 sin sesión o con usuario inexistente/bloqueado.
+- [ ] `POST /api/logout` destruye la sesión y limpia la cookie.
+- [ ] Logout repetido es idempotente.
+- [ ] No se agregaron rutas de negocio ni cambios en `front/`.
+- [ ] La raíz de `v06-issue-B06` contiene únicamente `west-security-backend/`.
