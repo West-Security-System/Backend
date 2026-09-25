@@ -1,33 +1,34 @@
-# Reporte metodológico - Backend Issue B06
+# Reporte metodológico - Backend Issue B07
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B06-me-logout`
+- Backend: `feature/backend-issue-B07-auth-middlewares`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(auth): agregar usuario actual y logout idempotente B06`
+- `feat(auth): agregar middlewares de autenticación y autorización B07`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): consultar sesión actual y cerrar sesión`
+`feat(backend): proteger rutas con auth y admin middleware`
 
 ### Referencia de cierre
 
-`Fixes backend#B06`
+`Fixes backend#B07`
 
 ### Resumen
 
-Se extiende el backend B05 con `GET /api/me` y `POST /api/logout`. El perfil devuelve únicamente id, username y rol; logout destruye la sesión y limpia la cookie de forma idempotente.
+Se extiende el backend B06 con dos middlewares de control de acceso: `requiereAuth` valida la sesión activa y `requiereAdmin` exige rol `admin`. Se restringe el origen CORS al cliente autorizado y se documenta la validación de permisos para rutas administrativas.
 
 ### Checklist
 
-- [ ] `GET /api/me` devuelve el perfil de la sesión actual sin datos sensibles.
-- [ ] `/api/me` responde 401 sin sesión o con usuario inexistente/bloqueado.
-- [ ] `POST /api/logout` destruye la sesión y limpia la cookie.
-- [ ] Logout repetido es idempotente.
-- [ ] No se agregaron rutas de negocio ni cambios en `front/`.
-- [ ] La raíz de `v06-issue-B06` contiene únicamente `west-security-backend/`.
+- [ ] `requiereAuth` responde 401 si no hay sesión válida o el usuario está bloqueado.
+- [ ] `requiereAdmin` responde 403 cuando el rol no es `admin`.
+- [ ] La política de CORS solo acepta el origen autorizado configurado en `CORS_ORIGIN`.
+- [ ] `GET /api/me` sigue respondiendo con el perfil autenticado.
+- [ ] `GET /api/admin/dashboard` exige autenticación y permisos de administrador.
+- [ ] No se tocaron rutas de `front/`.
+- [ ] La raíz de `v07-issue-B07` contiene únicamente `west-security-backend/`.
