@@ -3,8 +3,7 @@ require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const session = require('express-session');
-const { initDatabase, closeDatabase } = require('./db');
-const { findUserByUsername } = require('./db');
+const { initDatabase, closeDatabase, findUserByUsername, findUserById } = require('./db');
 const bcrypt = require('bcryptjs');
 
 const app = express();
@@ -71,6 +70,40 @@ app.post('/api/login', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+function requireSession(req, res, next) {
+  if (!req.session.userId) {
+    return next(createApiError(401, 'UNAUTHENTICATED', 'Sesión no autenticada.'));
+  }
+  next();
+}
+
+app.get('/api/me', requireSession, (req, res, next) => {
+  try {
+    const user = findUserById(req.session.userId);
+    if (!user || user.bloqueado) {
+      return next(createApiError(401, 'UNAUTHENTICATED', 'Sesión no autenticada.'));
+    }
+    sendSuccess(res, {
+      user: { id: user.id, username: user.username, rol: user.rol }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/logout', (req, res, next) => {
+  req.session.destroy((error) => {
+    if (error) return next(error);
+    res.clearCookie('connect.sid', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: cookieSecure,
+      path: '/'
+    });
+    sendSuccess(res, { loggedOut: true });
+  });
 });
 
 app.use((req, res, next) => {
