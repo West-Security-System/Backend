@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const cors = require('cors');
 const express = require('express');
 const session = require('express-session');
 const { initDatabase, closeDatabase, findUserByUsername, findUserById } = require('./db');
@@ -12,6 +11,7 @@ const version = process.env.APP_VERSION || '0.1.0';
 const isDevelopment = process.env.NODE_ENV === 'development';
 const sessionMaxAge = Number(process.env.SESSION_MAX_AGE_MS || 86400000);
 const cookieSecure = process.env.COOKIE_SECURE === 'true';
+const allowedClientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5500';
 
 const supportedStatuses = new Set([400, 401, 403, 404, 409, 422, 500]);
 
@@ -27,9 +27,26 @@ function createApiError(status, code, message, fields) {
   return error;
 }
 
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5500'
-}));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (!origin) return next();
+
+  if (origin !== allowedClientOrigin) {
+    return next(createApiError(403, 'CORS_FORBIDDEN', 'Origen no autorizado por la política de CORS.'));
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 app.use(express.json());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'development-only-session-secret',
@@ -72,25 +89,42 @@ app.post('/api/login', async (req, res, next) => {
   }
 });
 
-function requireSession(req, res, next) {
+function requiereAuth(req, res, next) {
   if (!req.session.userId) {
     return next(createApiError(401, 'UNAUTHENTICATED', 'Sesión no autenticada.'));
   }
+
+  const user = findUserById(req.session.userId);
+  if (!user || user.bloqueado) {
+    return next(createApiError(401, 'UNAUTHENTICATED', 'Sesión no autenticada.'));
+  }
+
+  req.user = user;
   next();
 }
 
-app.get('/api/me', requireSession, (req, res, next) => {
-  try {
-    const user = findUserById(req.session.userId);
-    if (!user || user.bloqueado) {
-      return next(createApiError(401, 'UNAUTHENTICATED', 'Sesión no autenticada.'));
-    }
-    sendSuccess(res, {
-      user: { id: user.id, username: user.username, rol: user.rol }
-    });
-  } catch (error) {
-    next(error);
+function requiereAdmin(req, res, next) {
+  if (req.session.role !== 'admin') {
+    return next(createApiError(403, 'FORBIDDEN', 'No tienes permisos para acceder a esta ruta.'));
   }
+
+  next();
+}
+
+app.get('/api/me', requiereAuth, (req, res) => {
+  sendSuccess(res, {
+    user: { id: req.user.id, username: req.user.username, rol: req.user.rol }
+  });
+});
+
+app.get('/api/admin/dashboard', requiereAuth, requiereAdmin, (req, res) => {
+  sendSuccess(res, {
+    dashboard: {
+      title: 'Panel administrativo',
+      user: { id: req.user.id, username: req.user.username, rol: req.user.rol },
+      access: 'granted'
+    }
+  });
 });
 
 app.post('/api/logout', (req, res, next) => {
