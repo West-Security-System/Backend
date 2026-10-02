@@ -1,35 +1,34 @@
-# Reporte metodológico - Backend Issue B08
+# Reporte metodológico - Backend Issue B09
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B08-admin-usuarios`
+- Backend: `feature/backend-issue-B09-guard-bloqueos`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(admin): agregar CRUD protegido de usuarios B08`
+- `feat(admin): agregar tabla de bloqueos por guardia B09`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): administrar usuarios con validación y control de permisos`
+`feat(backend): gestionar indisponibilidades de guardias`
 
 ### Referencia de cierre
 
-`Fixes backend#B08`
+`Fixes backend#B09`
 
 ### Resumen
 
-Se extiende el backend B07 con rutas administrativas protegidas para consultar, crear, actualizar y eliminar usuarios. Las operaciones validan campos obligatorios, encripta contraseñas con bcrypt, rechazan usernames duplicados con 409, impiden la autoeliminación del administrador activo y ocultan los hashes de contraseña en todas las respuestas JSON.
+Se extiende el backend B08 con la estructura necesaria para registrar indisponibilidades de guardias por fecha o rango, y se incorpora la ruta protegida `PUT /api/admin/usuarios/:id/bloqueos`. La operación valida el payload, evita formatos inválidos con 422 y rechaza cambios cuando el guardia ya tiene asignaciones en los días solicitados.
 
 ### Checklist
 
-- [ ] `GET /api/admin/usuarios` devuelve la lista sin incluir hashes.
-- [ ] `POST /api/admin/usuarios` valida campos obligatorios, rol permitido y guarda un hash bcrypt.
-- [ ] `POST /api/admin/usuarios` responde 409 ante username duplicado.
-- [ ] `PUT /api/admin/usuarios` valida cambios y evita duplicates.
-- [ ] `DELETE /api/admin/usuarios` prohíbe eliminar al administrador autenticado actual.
-- [ ] Todas las respuestas JSON sanitizan el campo `password_hash`.
+- [ ] Se crea la tabla `guardia_bloqueos` para fechas y rangos de indisponibilidad.
+- [ ] `PUT /api/admin/usuarios/:id/bloqueos` requiere autenticación y rol de administrador.
+- [ ] El payload acepta `fecha` o `rango` con `fecha_inicio`/`fecha_fin` en formato ISO válido.
+- [ ] Formatos inválidos responden 422 Unprocessable Entity.
+- [ ] La operación rechaza días con asignaciones vigentes del guardia.
 - [ ] No se tocaron rutas de `front/`.
-- [ ] La raíz de `v08-issue-B08` contiene únicamente `west-security-backend/`.
+- [ ] La raíz de `v09-issue-B09` contiene únicamente `west-security-backend/`.
