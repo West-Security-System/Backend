@@ -46,6 +46,28 @@ async function initDatabase() {
       );
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (2);
+      CREATE TABLE IF NOT EXISTS guardia_bloqueos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        tipo TEXT NOT NULL CHECK (tipo IN ('fecha', 'rango')),
+        fecha TEXT,
+        fecha_inicio TEXT,
+        fecha_fin TEXT,
+        motivo TEXT NOT NULL DEFAULT 'indisponibilidad',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS guardia_asignaciones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        motivo TEXT NOT NULL DEFAULT 'asignado',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (3);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -53,6 +75,24 @@ async function initDatabase() {
     database.run('ROLLBACK');
     throw error;
   }
+}
+
+function ensureAdminCredentials({ username, passwordHash }) {
+  const adminStatement = database.prepare("SELECT id FROM usuarios WHERE rol = 'admin' ORDER BY id ASC LIMIT 1");
+  const admin = adminStatement.step() ? adminStatement.getAsObject() : null;
+  adminStatement.free();
+  const existingUsername = findUserByUsername(username);
+
+  if (existingUsername && (!admin || Number(existingUsername.id) !== Number(admin.id))) {
+    throw new Error(`ADMIN_USERNAME_CONFLICT: ${username}`);
+  }
+
+  if (admin) {
+    database.run(`UPDATE usuarios SET username = ?, password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [username, passwordHash, admin.id]);
+  } else {
+    database.run(`INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, 'admin')`, [username, passwordHash]);
+  }
+  saveDatabase();
 }
 
 function insertUser({ username, passwordHash, rol, bloqueado = 0 }) {
@@ -170,6 +210,83 @@ function deleteUserById(id) {
   return currentUser;
 }
 
+function listGuardBlockDatesByUserId(userId) {
+  const statement = database.prepare(`
+    SELECT id, usuario_id, tipo, fecha, fecha_inicio, fecha_fin, motivo, created_at, updated_at
+    FROM guardia_bloqueos
+    WHERE usuario_id = ?
+    ORDER BY fecha_inicio, fecha, id ASC
+  `);
+  statement.bind([userId]);
+  const items = [];
+
+  while (statement.step()) {
+    items.push(statement.getAsObject());
+  }
+
+  statement.free();
+  return items;
+}
+
+function replaceGuardBlockDates(userId, blockDates) {
+  const deleteStatement = database.prepare(`DELETE FROM guardia_bloqueos WHERE usuario_id = ?`);
+  deleteStatement.bind([userId]);
+  deleteStatement.step();
+  deleteStatement.free();
+
+  for (const item of blockDates) {
+    const insertStatement = database.prepare(`
+      INSERT INTO guardia_bloqueos (usuario_id, tipo, fecha, fecha_inicio, fecha_fin, motivo)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insertStatement.bind([
+      userId,
+      item.tipo,
+      item.fecha || null,
+      item.fecha_inicio || null,
+      item.fecha_fin || null,
+      item.motivo || 'indisponibilidad'
+    ]);
+    insertStatement.step();
+    insertStatement.free();
+  }
+
+  saveDatabase();
+  return listGuardBlockDatesByUserId(userId);
+}
+
+function findAssignmentsForUserInDates(userId, dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return [];
+  const placeholders = dates.map(() => '?').join(', ');
+  const statement = database.prepare(`
+    SELECT id, usuario_id, fecha, motivo, created_at
+    FROM guardia_asignaciones
+    WHERE usuario_id = ? AND fecha IN (${placeholders})
+    ORDER BY fecha ASC
+  `);
+  const bindings = [userId, ...dates];
+  statement.bind(bindings);
+  const rows = [];
+
+  while (statement.step()) {
+    rows.push(statement.getAsObject());
+  }
+
+  statement.free();
+  return rows;
+}
+
+function insertAssignment({ userId, fecha, motivo = 'asignado' }) {
+  const statement = database.prepare(`
+    INSERT INTO guardia_asignaciones (usuario_id, fecha, motivo)
+    VALUES (?, ?, ?)
+  `);
+  statement.bind([userId, fecha, motivo]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+}
+
 async function closeDatabase() {
   if (!database) return;
   saveDatabase();
@@ -180,10 +297,15 @@ async function closeDatabase() {
 module.exports = {
   initDatabase,
   closeDatabase,
+  ensureAdminCredentials,
   insertUser,
   listUsers,
   findUserByUsername,
   findUserById,
   updateUserById,
-  deleteUserById
+  deleteUserById,
+  replaceGuardBlockDates,
+  listGuardBlockDatesByUserId,
+  findAssignmentsForUserInDates,
+  insertAssignment
 };
