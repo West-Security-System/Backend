@@ -1,34 +1,34 @@
-# Reporte metodológico - Backend Issue B10
+# Reporte metodológico - Backend Issue B11
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B10-locales-admin`
+- Backend: `feature/backend-issue-B11-horarios-servicios`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(admin): agregar CRUD de locales B10`
+- `feat(admin): agregar CRUD de horarios por servicio B11`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): gestionar servicios con validación y política de eliminación`
+`feat(backend): gestionar horarios asociados a servicios`
 
 ### Referencia de cierre
 
-`Fixes backend#B10`
+`Fixes backend#B11`
 
 ### Resumen
 
-Se extiende el backend B09 con la tabla `locales` y la API protegida `GET/POST/PUT/DELETE /api/admin/locales`. La operación valida latitud y longitud dentro de rangos válidos, rechaza nombres duplicados con 409, y protege la eliminación de locales que todavía tienen relaciones activas con guardias.
+Se extiende el backend B10 con la tabla `horarios`, relacionada mediante `servicio_id` con los servicios gestionados por la tabla `locales`, más la API protegida `GET/POST/PUT/DELETE /api/admin/horarios`. La operación permite filtrar por `servicio_id`, exige que el servicio exista y valida que `hora_fin` sea estrictamente posterior a `hora_inicio`.
 
 ### Checklist
 
-- [ ] Se crea la tabla `locales` con `nombre`, `latitud` y `longitud`.
-- [ ] `GET/POST/PUT/DELETE /api/admin/locales` requieren autenticación y rol de administrador.
-- [ ] Latitud y longitud deben estar dentro de rangos numéricos válidos y responder 422 si no lo están.
-- [ ] Nombres duplicados responden 409 Conflict.
-- [ ] La eliminación de local con relaciones activas responde 409 y no destruye registros vinculados.
+- [ ] Se crea la tabla `horarios` con `servicio_id`, días, horas y capacidad, relacionada con los servicios de B10.
+- [ ] `GET/POST/PUT/DELETE /api/admin/horarios` requieren autenticación y rol de administrador.
+- [ ] `GET /api/admin/horarios?servicio_id=:id` filtra los horarios por servicio.
+- [ ] Un servicio inexistente responde 422 y no crea ni actualiza horarios.
+- [ ] Una hora de fin igual o anterior a la hora de inicio responde 422.
 - [ ] No se tocaron rutas de `front/`.
-- [ ] La raíz de `v10-issue-B10` contiene únicamente `west-security-backend/`.
+- [ ] La raíz de `v11-issue-B11` contiene únicamente `west-security-backend/`.

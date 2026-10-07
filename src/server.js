@@ -16,6 +16,12 @@ const {
   listGuardBlockDatesByUserId,
   findAssignmentsForUserInDates,
   insertAssignment,
+  findServiceById,
+  listSchedules,
+  findScheduleById,
+  insertSchedule,
+  updateScheduleById,
+  deleteScheduleById,
   listLocales,
   findLocalById,
   findLocalByName,
@@ -396,6 +402,80 @@ function validateCoordinates({ latitud, longitud }) {
     throw createApiError(422, 'INVALID_LONGITUDE', 'La longitud debe estar entre -180 y 180.', ['longitud']);
   }
 }
+
+function normalizeSchedulePayload(payload) {
+  const { servicio_id: servicioId, dias, hora_inicio: horaInicio, hora_fin: horaFin, capacidad } = payload || {};
+  const normalizedServiceId = Number(servicioId);
+  const normalizedCapacity = Number(capacidad);
+  const normalizedDays = Array.isArray(dias) ? dias : [dias];
+  const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+  if (!Number.isInteger(normalizedServiceId) || normalizedServiceId <= 0 || !findServiceById(normalizedServiceId)) {
+    throw createApiError(422, 'SERVICE_NOT_FOUND', 'El servicio referenciado no existe.', ['servicio_id']);
+  }
+  if (!Array.isArray(dias) || normalizedDays.length === 0 || normalizedDays.some((day) => !Number.isInteger(day) || day < 1 || day > 7)) {
+    throw createApiError(422, 'INVALID_DAYS', 'Los días deben ser un arreglo con valores del 1 al 7.', ['dias']);
+  }
+  if (!timePattern.test(horaInicio) || !timePattern.test(horaFin) || horaFin <= horaInicio) {
+    throw createApiError(422, 'INVALID_TIME_RANGE', 'La hora de fin debe ser estrictamente posterior a la hora de inicio.', ['hora_inicio', 'hora_fin']);
+  }
+  if (!Number.isInteger(normalizedCapacity) || normalizedCapacity <= 0) {
+    throw createApiError(422, 'INVALID_CAPACITY', 'La capacidad debe ser un entero mayor que cero.', ['capacidad']);
+  }
+  return { servicioId: normalizedServiceId, dias: [...new Set(normalizedDays)], horaInicio, horaFin, capacidad: normalizedCapacity };
+}
+
+function serializeSchedule(schedule) {
+  return { ...schedule, dias: JSON.parse(schedule.dias) };
+}
+
+app.get('/api/admin/horarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const servicioId = req.query.servicio_id === undefined ? undefined : Number(req.query.servicio_id);
+    if (servicioId !== undefined && (!Number.isInteger(servicioId) || servicioId <= 0)) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El servicio_id debe ser válido.', ['servicio_id']));
+    }
+    sendSuccess(res, { horarios: listSchedules({ servicioId }).map(serializeSchedule) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/horarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const schedule = insertSchedule(normalizeSchedulePayload(req.body));
+    sendSuccess(res, { horario: serializeSchedule(schedule) }, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/horarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const scheduleId = Number(req.body?.id);
+    if (!Number.isInteger(scheduleId) || scheduleId <= 0 || !findScheduleById(scheduleId)) {
+      return next(createApiError(404, 'SCHEDULE_NOT_FOUND', 'Horario no encontrado.'));
+    }
+    const schedule = updateScheduleById(scheduleId, normalizeSchedulePayload(req.body));
+    sendSuccess(res, { horario: serializeSchedule(schedule) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/horarios', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const scheduleId = Number(req.body?.id ?? req.query?.id);
+    if (!Number.isInteger(scheduleId) || scheduleId <= 0) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El id del horario debe ser válido.', ['id']));
+    }
+    const schedule = deleteScheduleById(scheduleId);
+    if (!schedule) return next(createApiError(404, 'SCHEDULE_NOT_FOUND', 'Horario no encontrado.'));
+    sendSuccess(res, { eliminado: serializeSchedule(schedule) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get('/api/admin/locales', requiereAuth, requiereAdmin, (req, res, next) => {
   try {
