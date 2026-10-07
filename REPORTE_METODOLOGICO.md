@@ -1,34 +1,34 @@
-# Reporte metodológico - Backend Issue B09
+# Reporte metodológico - Backend Issue B10
 
 ## Estrategia de ramas
 
-- Backend: `feature/backend-issue-B09-guard-bloqueos`
+- Backend: `feature/backend-issue-B10-locales-admin`
 - Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
 
 ## Registro de commit sugerido
 
-- `feat(admin): agregar tabla de bloqueos por guardia B09`
+- `feat(admin): agregar CRUD de locales B10`
 
 ## Borrador del Pull Request
 
 ### Título
 
-`feat(backend): gestionar indisponibilidades de guardias`
+`feat(backend): gestionar servicios con validación y política de eliminación`
 
 ### Referencia de cierre
 
-`Fixes backend#B09`
+`Fixes backend#B10`
 
 ### Resumen
 
-Se extiende el backend B08 con la estructura necesaria para registrar indisponibilidades de guardias por fecha o rango, y se incorpora la ruta protegida `PUT /api/admin/usuarios/:id/bloqueos`. La operación valida el payload, evita formatos inválidos con 422 y rechaza cambios cuando el guardia ya tiene asignaciones en los días solicitados.
+Se extiende el backend B09 con la tabla `locales` y la API protegida `GET/POST/PUT/DELETE /api/admin/locales`. La operación valida latitud y longitud dentro de rangos válidos, rechaza nombres duplicados con 409, y protege la eliminación de locales que todavía tienen relaciones activas con guardias.
 
 ### Checklist
 
-- [ ] Se crea la tabla `guardia_bloqueos` para fechas y rangos de indisponibilidad.
-- [ ] `PUT /api/admin/usuarios/:id/bloqueos` requiere autenticación y rol de administrador.
-- [ ] El payload acepta `fecha` o `rango` con `fecha_inicio`/`fecha_fin` en formato ISO válido.
-- [ ] Formatos inválidos responden 422 Unprocessable Entity.
-- [ ] La operación rechaza días con asignaciones vigentes del guardia.
+- [ ] Se crea la tabla `locales` con `nombre`, `latitud` y `longitud`.
+- [ ] `GET/POST/PUT/DELETE /api/admin/locales` requieren autenticación y rol de administrador.
+- [ ] Latitud y longitud deben estar dentro de rangos numéricos válidos y responder 422 si no lo están.
+- [ ] Nombres duplicados responden 409 Conflict.
+- [ ] La eliminación de local con relaciones activas responde 409 y no destruye registros vinculados.
 - [ ] No se tocaron rutas de `front/`.
-- [ ] La raíz de `v09-issue-B09` contiene únicamente `west-security-backend/`.
+- [ ] La raíz de `v10-issue-B10` contiene únicamente `west-security-backend/`.

@@ -15,7 +15,14 @@ const {
   replaceGuardBlockDates,
   listGuardBlockDatesByUserId,
   findAssignmentsForUserInDates,
-  insertAssignment
+  insertAssignment,
+  listLocales,
+  findLocalById,
+  findLocalByName,
+  insertLocal,
+  updateLocalById,
+  deleteLocalById,
+  hasLocalRelations
 } = require('./db');
 const bcrypt = require('bcryptjs');
 
@@ -372,6 +379,98 @@ app.put('/api/admin/usuarios/:id/bloqueos', requiereAuth, requiereAdmin, (req, r
         motivo: item.motivo
       }))
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+function validateCoordinates({ latitud, longitud }) {
+  const latitude = Number(latitud);
+  const longitude = Number(longitud);
+
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw createApiError(422, 'INVALID_LATITUDE', 'La latitud debe estar entre -90 y 90.', ['latitud']);
+  }
+
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw createApiError(422, 'INVALID_LONGITUDE', 'La longitud debe estar entre -180 y 180.', ['longitud']);
+  }
+}
+
+app.get('/api/admin/locales', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    sendSuccess(res, { locales: listLocales() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/locales', requiereAuth, requiereAdmin, (req, res, next) => {
+  const { nombre, latitud, longitud } = req.body || {};
+
+  try {
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El nombre del local es obligatorio.', ['nombre']));
+    }
+
+    const normalizedName = nombre.trim();
+    validateCoordinates({ latitud, longitud });
+
+    const existing = findLocalByName(normalizedName);
+    if (existing) {
+      return next(createApiError(409, 'LOCAL_NAME_TAKEN', 'El nombre del local ya está registrado.', ['nombre']));
+    }
+
+    const local = insertLocal({ nombre: normalizedName, latitud, longitud });
+    sendSuccess(res, { local }, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/locales', requiereAuth, requiereAdmin, (req, res, next) => {
+  const { id, nombre, latitud, longitud } = req.body || {};
+
+  try {
+    const localId = Number(id);
+    if (!Number.isInteger(localId) || localId <= 0) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El id del local es obligatorio y debe ser válido.', ['id']));
+    }
+
+    const currentLocal = findLocalById(localId);
+    if (!currentLocal) {
+      return next(createApiError(404, 'LOCAL_NOT_FOUND', 'Local no encontrado.'));
+    }
+
+    if (!nombre || typeof nombre !== 'string' || !nombre.trim()) {
+      return next(createApiError(422, 'VALIDATION_ERROR', 'El nombre del local es obligatorio.', ['nombre']));
+    }
+
+    const normalizedName = nombre.trim();
+    validateCoordinates({ latitud, longitud });
+
+    const existingWithName = findLocalByName(normalizedName);
+    if (existingWithName && existingWithName.id !== localId) {
+      return next(createApiError(409, 'LOCAL_NAME_TAKEN', 'El nombre del local ya está registrado.', ['nombre']));
+    }
+
+    const updated = updateLocalById(localId, { nombre: normalizedName, latitud, longitud });
+    sendSuccess(res, { local: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/locales', requiereAuth, requiereAdmin, (req, res, next) => {
+  const localId = Number(req.body?.id ?? req.query?.id);
+
+  if (!Number.isInteger(localId) || localId <= 0) {
+    return next(createApiError(422, 'VALIDATION_ERROR', 'El id del local es obligatorio y debe ser válido.', ['id']));
+  }
+
+  try {
+    const deleted = deleteLocalById(localId);
+    sendSuccess(res, { eliminado: deleted });
   } catch (error) {
     next(error);
   }

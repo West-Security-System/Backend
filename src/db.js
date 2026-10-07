@@ -66,8 +66,24 @@ async function initDatabase() {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS locales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL UNIQUE,
+        latitud REAL NOT NULL,
+        longitud REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS guardia_locales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        local_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (local_id) REFERENCES locales(id) ON DELETE RESTRICT
+      );
       INSERT OR IGNORE INTO schema_migrations (version)
-      VALUES (3);
+      VALUES (4);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -287,6 +303,135 @@ function insertAssignment({ userId, fecha, motivo = 'asignado' }) {
   saveDatabase();
 }
 
+function listLocales() {
+  const statement = database.prepare(`
+    SELECT id, nombre, latitud, longitud, created_at, updated_at
+    FROM locales
+    ORDER BY id ASC
+  `);
+  const locales = [];
+
+  while (statement.step()) {
+    locales.push(statement.getAsObject());
+  }
+
+  statement.free();
+  return locales;
+}
+
+function findLocalById(id) {
+  const statement = database.prepare(`
+    SELECT id, nombre, latitud, longitud, created_at, updated_at
+    FROM locales WHERE id = ?
+  `);
+  statement.bind([id]);
+  const local = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return local;
+}
+
+function findLocalByName(nombre) {
+  const statement = database.prepare(`
+    SELECT id, nombre, latitud, longitud, created_at, updated_at
+    FROM locales WHERE nombre = ?
+  `);
+  statement.bind([nombre]);
+  const local = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return local;
+}
+
+function insertLocal({ nombre, latitud, longitud }) {
+  try {
+    const statement = database.prepare(`
+      INSERT INTO locales (nombre, latitud, longitud)
+      VALUES (?, ?, ?)
+    `);
+    statement.bind([nombre, Number(latitud), Number(longitud)]);
+    statement.step();
+    statement.free();
+    saveDatabase();
+    return findLocalByName(nombre);
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed: locales.nombre')) {
+      const duplicateError = new Error('El nombre del local ya está registrado.');
+      duplicateError.code = 'LOCAL_NAME_TAKEN';
+      duplicateError.status = 409;
+      throw duplicateError;
+    }
+    throw error;
+  }
+}
+
+function updateLocalById(id, { nombre, latitud, longitud }) {
+  const currentLocal = findLocalById(id);
+  if (!currentLocal) {
+    const error = new Error('Local no encontrado.');
+    error.code = 'LOCAL_NOT_FOUND';
+    error.status = 404;
+    throw error;
+  }
+
+  const nextNombre = nombre ?? currentLocal.nombre;
+  const nextLatitud = latitud ?? currentLocal.latitud;
+  const nextLongitud = longitud ?? currentLocal.longitud;
+
+  try {
+    const statement = database.prepare(`
+      UPDATE locales
+      SET nombre = ?, latitud = ?, longitud = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    statement.bind([nextNombre, Number(nextLatitud), Number(nextLongitud), id]);
+    statement.step();
+    statement.free();
+    saveDatabase();
+    return findLocalById(id);
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed: locales.nombre')) {
+      const duplicateError = new Error('El nombre del local ya está registrado.');
+      duplicateError.code = 'LOCAL_NAME_TAKEN';
+      duplicateError.status = 409;
+      throw duplicateError;
+    }
+    throw error;
+  }
+}
+
+function hasLocalRelations(localId) {
+  const statement = database.prepare(`
+    SELECT COUNT(*) AS total FROM guardia_locales WHERE local_id = ?
+  `);
+  statement.bind([localId]);
+  const row = statement.step() ? statement.getAsObject() : { total: 0 };
+  statement.free();
+  return Number(row.total) > 0;
+}
+
+function deleteLocalById(id) {
+  const currentLocal = findLocalById(id);
+  if (!currentLocal) {
+    const error = new Error('Local no encontrado.');
+    error.code = 'LOCAL_NOT_FOUND';
+    error.status = 404;
+    throw error;
+  }
+
+  if (hasLocalRelations(id)) {
+    const error = new Error('No se puede eliminar un local que tiene relaciones activas.');
+    error.code = 'LOCAL_HAS_RELATIONS';
+    error.status = 409;
+    throw error;
+  }
+
+  const statement = database.prepare(`DELETE FROM locales WHERE id = ?`);
+  statement.bind([id]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+  return currentLocal;
+}
+
 async function closeDatabase() {
   if (!database) return;
   saveDatabase();
@@ -307,5 +452,12 @@ module.exports = {
   replaceGuardBlockDates,
   listGuardBlockDatesByUserId,
   findAssignmentsForUserInDates,
-  insertAssignment
+  insertAssignment,
+  listLocales,
+  findLocalById,
+  findLocalByName,
+  insertLocal,
+  updateLocalById,
+  deleteLocalById,
+  hasLocalRelations
 };
