@@ -82,8 +82,19 @@ async function initDatabase() {
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
         FOREIGN KEY (local_id) REFERENCES locales(id) ON DELETE RESTRICT
       );
+      CREATE TABLE IF NOT EXISTS horarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        servicio_id INTEGER NOT NULL,
+        dias TEXT NOT NULL,
+        hora_inicio TEXT NOT NULL,
+        hora_fin TEXT NOT NULL,
+        capacidad INTEGER NOT NULL CHECK (capacidad > 0),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (servicio_id) REFERENCES locales(id) ON DELETE RESTRICT
+      );
       INSERT OR IGNORE INTO schema_migrations (version)
-      VALUES (4);
+      VALUES (5);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -303,6 +314,72 @@ function insertAssignment({ userId, fecha, motivo = 'asignado' }) {
   saveDatabase();
 }
 
+function findServiceById(id) {
+  return findLocalById(id);
+}
+
+function listSchedules({ servicioId } = {}) {
+  const query = servicioId === undefined
+    ? `SELECT id, servicio_id, dias, hora_inicio, hora_fin, capacidad, created_at, updated_at FROM horarios ORDER BY id ASC`
+    : `SELECT id, servicio_id, dias, hora_inicio, hora_fin, capacidad, created_at, updated_at FROM horarios WHERE servicio_id = ? ORDER BY id ASC`;
+  const statement = database.prepare(query);
+  if (servicioId !== undefined) statement.bind([servicioId]);
+  const schedules = [];
+  while (statement.step()) schedules.push(statement.getAsObject());
+  statement.free();
+  return schedules;
+}
+
+function findScheduleById(id) {
+  return listSchedules().find((schedule) => Number(schedule.id) === Number(id)) || null;
+}
+
+function insertSchedule({ servicioId, dias, horaInicio, horaFin, capacidad }) {
+  const statement = database.prepare(`
+    INSERT INTO horarios (servicio_id, dias, hora_inicio, hora_fin, capacidad)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  statement.bind([servicioId, JSON.stringify(dias), horaInicio, horaFin, Number(capacidad)]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+  const scheduleStatement = database.prepare(`
+    SELECT id, servicio_id, dias, hora_inicio, hora_fin, capacidad, created_at, updated_at
+    FROM horarios
+    WHERE servicio_id = ? AND dias = ? AND hora_inicio = ? AND hora_fin = ? AND capacidad = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `);
+  scheduleStatement.bind([servicioId, JSON.stringify(dias), horaInicio, horaFin, Number(capacidad)]);
+  const schedule = scheduleStatement.step() ? scheduleStatement.getAsObject() : null;
+  scheduleStatement.free();
+  return schedule;
+}
+
+function updateScheduleById(id, { servicioId, dias, horaInicio, horaFin, capacidad }) {
+  const statement = database.prepare(`
+    UPDATE horarios
+    SET servicio_id = ?, dias = ?, hora_inicio = ?, hora_fin = ?, capacidad = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  statement.bind([servicioId, JSON.stringify(dias), horaInicio, horaFin, Number(capacidad), id]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+  return findScheduleById(id);
+}
+
+function deleteScheduleById(id) {
+  const currentSchedule = findScheduleById(id);
+  if (!currentSchedule) return null;
+  const statement = database.prepare(`DELETE FROM horarios WHERE id = ?`);
+  statement.bind([id]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+  return currentSchedule;
+}
+
 function listLocales() {
   const statement = database.prepare(`
     SELECT id, nombre, latitud, longitud, created_at, updated_at
@@ -453,6 +530,12 @@ module.exports = {
   listGuardBlockDatesByUserId,
   findAssignmentsForUserInDates,
   insertAssignment,
+  findServiceById,
+  listSchedules,
+  findScheduleById,
+  insertSchedule,
+  updateScheduleById,
+  deleteScheduleById,
   listLocales,
   findLocalById,
   findLocalByName,
