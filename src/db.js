@@ -93,8 +93,17 @@ async function initDatabase() {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (servicio_id) REFERENCES locales(id) ON DELETE RESTRICT
       );
+      CREATE TABLE IF NOT EXISTS guardia_horarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        horario_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (usuario_id, horario_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (horario_id) REFERENCES horarios(id) ON DELETE CASCADE
+      );
       INSERT OR IGNORE INTO schema_migrations (version)
-      VALUES (5);
+      VALUES (6);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -380,6 +389,67 @@ function deleteScheduleById(id) {
   return currentSchedule;
 }
 
+function listScheduleAssignments(horarioId) {
+  const statement = database.prepare(`
+    SELECT gh.id, gh.usuario_id, gh.horario_id, gh.created_at,
+           u.username, u.rol
+    FROM guardia_horarios gh
+    INNER JOIN usuarios u ON u.id = gh.usuario_id
+    WHERE gh.horario_id = ?
+    ORDER BY gh.id ASC
+  `);
+  statement.bind([horarioId]);
+  const assignments = [];
+  while (statement.step()) assignments.push(statement.getAsObject());
+  statement.free();
+  return assignments;
+}
+
+function findScheduleAssignment(usuarioId, horarioId) {
+  const statement = database.prepare(`
+    SELECT id, usuario_id, horario_id, created_at
+    FROM guardia_horarios
+    WHERE usuario_id = ? AND horario_id = ?
+  `);
+  statement.bind([usuarioId, horarioId]);
+  const assignment = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return assignment;
+}
+
+function insertScheduleAssignment({ usuarioId, horarioId }) {
+  try {
+    const statement = database.prepare(`
+      INSERT INTO guardia_horarios (usuario_id, horario_id)
+      VALUES (?, ?)
+    `);
+    statement.bind([usuarioId, horarioId]);
+    statement.step();
+    statement.free();
+    saveDatabase();
+    return findScheduleAssignment(usuarioId, horarioId);
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed: guardia_horarios.usuario_id, guardia_horarios.horario_id')) {
+      const duplicateError = new Error('El guardia ya está asignado a este horario.');
+      duplicateError.code = 'GUARD_ALREADY_ASSIGNED';
+      duplicateError.status = 409;
+      throw duplicateError;
+    }
+    throw error;
+  }
+}
+
+function deleteScheduleAssignment(usuarioId, horarioId) {
+  const assignment = findScheduleAssignment(usuarioId, horarioId);
+  if (!assignment) return null;
+  const statement = database.prepare(`DELETE FROM guardia_horarios WHERE id = ?`);
+  statement.bind([assignment.id]);
+  statement.step();
+  statement.free();
+  saveDatabase();
+  return assignment;
+}
+
 function listLocales() {
   const statement = database.prepare(`
     SELECT id, nombre, latitud, longitud, created_at, updated_at
@@ -536,6 +606,10 @@ module.exports = {
   insertSchedule,
   updateScheduleById,
   deleteScheduleById,
+  listScheduleAssignments,
+  findScheduleAssignment,
+  insertScheduleAssignment,
+  deleteScheduleAssignment,
   listLocales,
   findLocalById,
   findLocalByName,

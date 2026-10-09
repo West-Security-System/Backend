@@ -22,6 +22,10 @@ const {
   insertSchedule,
   updateScheduleById,
   deleteScheduleById,
+  listScheduleAssignments,
+  findScheduleAssignment,
+  insertScheduleAssignment,
+  deleteScheduleAssignment,
   listLocales,
   findLocalById,
   findLocalByName,
@@ -428,6 +432,104 @@ function normalizeSchedulePayload(payload) {
 function serializeSchedule(schedule) {
   return { ...schedule, dias: JSON.parse(schedule.dias) };
 }
+
+function getBlockedWeekdays(userId) {
+  const weekdays = new Set();
+  for (const block of listGuardBlockDatesByUserId(userId)) {
+    const start = block.tipo === 'fecha' ? block.fecha : block.fecha_inicio;
+    const end = block.tipo === 'fecha' ? block.fecha : block.fecha_fin;
+    if (!start || !end) continue;
+
+    const current = new Date(`${start}T00:00:00Z`);
+    const last = new Date(`${end}T00:00:00Z`);
+    while (current <= last) {
+      const weekday = current.getUTCDay() || 7;
+      weekdays.add(weekday);
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
+  }
+  return weekdays;
+}
+
+function getAssignmentPayload(req) {
+  const usuarioId = Number(req.body?.usuario_id ?? req.body?.user_id ?? req.query?.usuario_id);
+  const horarioId = Number(req.params.id);
+  if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+    throw createApiError(422, 'VALIDATION_ERROR', 'El usuario_id debe ser válido.', ['usuario_id']);
+  }
+  if (!Number.isInteger(horarioId) || horarioId <= 0) {
+    throw createApiError(422, 'VALIDATION_ERROR', 'El id del horario debe ser válido.', ['id']);
+  }
+  return { usuarioId, horarioId };
+}
+
+function serializeAssignment(assignment) {
+  return {
+    id: assignment.id,
+    usuario_id: assignment.usuario_id,
+    horario_id: assignment.horario_id,
+    username: assignment.username,
+    rol: assignment.rol,
+    created_at: assignment.created_at
+  };
+}
+
+app.get('/api/admin/horarios/:id/guardias', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const horarioId = Number(req.params.id);
+    if (!Number.isInteger(horarioId) || horarioId <= 0 || !findScheduleById(horarioId)) {
+      return next(createApiError(404, 'SCHEDULE_NOT_FOUND', 'Horario no encontrado.'));
+    }
+    sendSuccess(res, { asignaciones: listScheduleAssignments(horarioId).map(serializeAssignment) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/horarios/:id/guardias', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const { usuarioId, horarioId } = getAssignmentPayload(req);
+    const schedule = findScheduleById(horarioId);
+    if (!schedule) return next(createApiError(404, 'SCHEDULE_NOT_FOUND', 'Horario no encontrado.'));
+
+    const user = findUserById(usuarioId);
+    if (!user) return next(createApiError(404, 'USER_NOT_FOUND', 'Usuario no encontrado.'));
+    if (user.rol !== 'guardia') {
+      return next(createApiError(422, 'INVALID_GUARD_USER', 'Solo se pueden asignar usuarios con rol guardia.', ['usuario_id']));
+    }
+    if (findScheduleAssignment(usuarioId, horarioId)) {
+      return next(createApiError(409, 'GUARD_ALREADY_ASSIGNED', 'El guardia ya está asignado a este horario.'));
+    }
+
+    const assigned = listScheduleAssignments(horarioId);
+    if (assigned.length >= Number(schedule.capacidad)) {
+      return next(createApiError(409, 'SCHEDULE_CAPACITY_REACHED', 'El horario no tiene capacidad disponible.'));
+    }
+
+    const blockedWeekdays = getBlockedWeekdays(usuarioId);
+    const scheduleDays = JSON.parse(schedule.dias);
+    if (scheduleDays.some((day) => blockedWeekdays.has(day))) {
+      return next(createApiError(409, 'GUARD_BLOCKED_DAY', 'El guardia tiene días bloqueados que coinciden con el horario.', ['usuario_id', 'horario_id']));
+    }
+
+    const assignment = insertScheduleAssignment({ usuarioId, horarioId });
+    sendSuccess(res, { asignacion: serializeAssignment({ ...assignment, username: user.username, rol: user.rol }) }, 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/admin/horarios/:id/guardias', requiereAuth, requiereAdmin, (req, res, next) => {
+  try {
+    const { usuarioId, horarioId } = getAssignmentPayload(req);
+    if (!findScheduleById(horarioId)) return next(createApiError(404, 'SCHEDULE_NOT_FOUND', 'Horario no encontrado.'));
+    const assignment = deleteScheduleAssignment(usuarioId, horarioId);
+    if (!assignment) return next(createApiError(404, 'ASSIGNMENT_NOT_FOUND', 'Asignación no encontrada.'));
+    sendSuccess(res, { desasignado: assignment });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get('/api/admin/horarios', requiereAuth, requiereAdmin, (req, res, next) => {
   try {
