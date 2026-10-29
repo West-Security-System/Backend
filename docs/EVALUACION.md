@@ -3,7 +3,7 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación III (RepoSense + análisis de calidad + constancia). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-10-28.
+> Generado: 2026-10-29.
 
 ## 1. Veredicto
 
@@ -35,7 +35,7 @@
 
 | Alumno | Sesiones | Cumplimiento | Pausa | Recencia | IC | Nivel | Para subir de nivel |
 |---|--:|--:|--:|--:|--:|--|--|
-| gonza-carelli | 11 | 51% | 14 d | 50% | **40** | No aprueba | Pausa 14 d (máx. 10 d) |
+| gonza-carelli | 8 | 36% | 14 d | 43% | **30** | No aprueba | Cumplimiento 36% (mín. 50%); Pausa 14 d (máx. 10 d); Recencia 43% (mín. 50%) |
 
 > Para aprobar el IC: **2 sesiones por semana** sostenidas, sin pausas mayores a **10 días** y con actividad en las **últimas 2 semanas**. Se excluyen merges, bots y al docente. Zona horaria UTC-3.
 
