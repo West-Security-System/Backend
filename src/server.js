@@ -37,6 +37,8 @@ const {
 const bcrypt = require('bcryptjs');
 
 const app = express();
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) throw new Error('SESSION_SECRET must be configured.');
 const port = Number(process.env.PORT || 3000);
 const version = process.env.APP_VERSION || '0.1.0';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -92,7 +94,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'development-only-session-secret',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -102,6 +104,7 @@ app.use(session({
     maxAge: sessionMaxAge
   }
 }));
+app.use('/api/admin', require('./routes/adminOperationalRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {
