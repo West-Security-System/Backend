@@ -1,32 +1,31 @@
 ## Información de la Issue
 
-- ID y nombre: Backend B13 — Exponer resumen operativo administrativo.
-- Repositorio/carpeta: west-security-backend, back/v13-issue-B13.
-- Commit Git: HEAD consultado antes de editar: 7337ac0 (base del workspace, no atribuible a B13).
-- Commit sugerido: feat(backend): documentar resumen operativo admin B13. Para publicar: git rev-parse --short HEAD y git push origin feature/backend-issue-B13-resumen-operativo.
+- ID y nombre: Backend B14 — Exponer servicios y horarios asignados al guardia.
+- Repositorio/carpeta: west-security-backend, back/v14-issue-B14.
+- Commit Git: HEAD consultado antes de editar: 7337ac0 (base, no atribuible a B14).
+- Commit sugerido: feat(backend): documentar servicios asignados B14. Para publicar: git rev-parse --short HEAD y git push origin feature/backend-issue-B14-servicios-guardia.
 
 ## Registro Metodológico y Cambios Realizados
 
-B13 agrega las consultas administrativas de registros activos e historial. Las rutas requieren admin; controladores delegan al servicio; el servicio valida ids, fechas y rangos, limita resultados a 50 por defecto y 100 máximo y normaliza timestamps a ISO 8601; el repositorio consulta datos persistidos. La respuesta usa { data, error }. Frente a B12 se incorpora el módulo de resumen operativo y se integra en servidor/base de datos.
+B14 agrega consultas autenticadas de los servicios y horarios asignados al guardia. La identidad procede de req.user y limita los datos propios. Los horarios exigen nombre válido y servicio asignado; si el guardia no tiene asignaciones, se devuelve colección vacía. Frente a B13 se añaden el módulo guardServices, middleware de guardia, persistencia y montaje de rutas.
 
-- Routes: src/routes/adminOperationalRoutes.js — GET /api/admin/activos y /api/admin/registros.
-- Controllers: src/controllers/operationalSummaryController.js.
-- Services: src/services/operationalSummaryService.js — filtros, fechas y límites.
-- Repositories: src/repositories/operationalRecordsRepository.js.
-- Middlewares: src/middlewares/adminAuth.js.
+- Routes: src/routes/guardServicesRoutes.js — GET /api/mis-servicios y GET /api/servicio/:nombre/horarios.
+- Controllers: src/controllers/guardServicesController.js.
+- Services: src/services/guardServicesService.js.
+- Repositories: src/repositories/guardServicesRepository.js.
+- Middlewares: src/middlewares/guardAuth.js.
 - Utils: src/utils/apiError.js.
 - Integración/persistencia: src/server.js, src/db.js.
-- Test existente: test/issue13.test.js.
+- Test existente: test/issue14.test.js.
 
 ## Verificación de Criterios de Aceptación
 
-- [x] Activos e historial tienen rutas administrativas distintas.
-- [x] Filtros de local, usuario, fechas y límite se validan; máximo 100.
-- [x] Las fechas de salida se serializan en ISO 8601.
-- [x] El test contiene casos 401 anónimo, 403 guardia, 200 admin, vacío, límite y fecha inválida 422.
-- [ ] Test no ejecutado durante esta actualización; revisión estática solamente.
-- [ ] No hay aserción visible con registros existentes ni cobertura de cada filtro.
+- [x] Servicios y horarios quedan limitados al guardia autenticado.
+- [x] Nombre inválido produce 422 y servicio no asignado 403.
+- [x] Test cubre guardia asignado, guardia sin asignaciones y servicio ajeno.
+- [ ] Test no ejecutado durante esta actualización.
+- [ ] La matriz completa para sesión ausente/roles no aparece cubierta en el test visible.
 
 ## Evidencia de Funcionamiento y Pruebas
 
-test/issue13.test.js prepara servidor/base temporal. Aserta GET /api/admin/registros?limit=999 → 200, data.limite=100; fecha inválida → 422; sin sesión → 401; guardia → 403. Comando disponible: npm test desde esta carpeta. No se ejecutó en este trabajo.
+test/issue14.test.js inicia servidor/base temporal, crea admin, dos guardias, servicio, horario y asignación. Espera 200 con ids propios en ambas consultas, lista vacía 200 para el guardia no asignado y 403 para horarios de servicio ajeno. Comando disponible: npm test. No ejecutado aquí.
