@@ -1,34 +1,32 @@
-# Reporte metodológico - Backend Issue B12
+## Información de la Issue
 
-## Estrategia de ramas
+- ID y nombre: Backend B13 — Exponer resumen operativo administrativo.
+- Repositorio/carpeta: west-security-backend, back/v13-issue-B13.
+- Commit Git: HEAD consultado antes de editar: 7337ac0 (base del workspace, no atribuible a B13).
+- Commit sugerido: feat(backend): documentar resumen operativo admin B13. Para publicar: git rev-parse --short HEAD y git push origin feature/backend-issue-B13-resumen-operativo.
 
-- Backend: `feature/backend-issue-B12-asignaciones-horarios`
-- Frontend: no aplica en esta Issue. El frontend se trabajará como servicio independiente cuando corresponda.
+## Registro Metodológico y Cambios Realizados
 
-## Registro de commit sugerido
+B13 agrega las consultas administrativas de registros activos e historial. Las rutas requieren admin; controladores delegan al servicio; el servicio valida ids, fechas y rangos, limita resultados a 50 por defecto y 100 máximo y normaliza timestamps a ISO 8601; el repositorio consulta datos persistidos. La respuesta usa { data, error }. Frente a B12 se incorpora el módulo de resumen operativo y se integra en servidor/base de datos.
 
-- `feat(admin): vincular guardias con horarios B12`
+- Routes: src/routes/adminOperationalRoutes.js — GET /api/admin/activos y /api/admin/registros.
+- Controllers: src/controllers/operationalSummaryController.js.
+- Services: src/services/operationalSummaryService.js — filtros, fechas y límites.
+- Repositories: src/repositories/operationalRecordsRepository.js.
+- Middlewares: src/middlewares/adminAuth.js.
+- Utils: src/utils/apiError.js.
+- Integración/persistencia: src/server.js, src/db.js.
+- Test existente: test/issue13.test.js.
 
-## Borrador del Pull Request
+## Verificación de Criterios de Aceptación
 
-### Título
+- [x] Activos e historial tienen rutas administrativas distintas.
+- [x] Filtros de local, usuario, fechas y límite se validan; máximo 100.
+- [x] Las fechas de salida se serializan en ISO 8601.
+- [x] El test contiene casos 401 anónimo, 403 guardia, 200 admin, vacío, límite y fecha inválida 422.
+- [ ] Test no ejecutado durante esta actualización; revisión estática solamente.
+- [ ] No hay aserción visible con registros existentes ni cobertura de cada filtro.
 
-`feat(backend): asignar guardias a horarios de servicios`
+## Evidencia de Funcionamiento y Pruebas
 
-### Referencia de cierre
-
-`Fixes backend#B12`
-
-### Resumen
-
-Se extiende el backend B11 con la tabla puente `guardia_horarios` y la API protegida para listar, asignar y desasignar guardias de horarios. La operación valida el rol guardia, evita duplicados, respeta los días bloqueados y rechaza sobrecupos.
-
-### Checklist
-
-- [ ] Se crea la tabla `guardia_horarios` con unicidad por usuario y horario.
-- [ ] `GET/POST/DELETE /api/admin/horarios/:id/guardias` requieren autenticación y rol de administrador.
-- [ ] Solo se asignan usuarios con rol `guardia`.
-- [ ] Duplicados responden 409 y los sobrecupos responden 409.
-- [ ] Los días bloqueados del guardia responden 409 y no crean la asignación.
-- [ ] No se tocaron rutas de `front/`.
-- [ ] La raíz de `v12-issue-B12` contiene únicamente `west-security-backend/`.
+test/issue13.test.js prepara servidor/base temporal. Aserta GET /api/admin/registros?limit=999 → 200, data.limite=100; fecha inválida → 422; sin sesión → 401; guardia → 403. Comando disponible: npm test desde esta carpeta. No se ejecutó en este trabajo.

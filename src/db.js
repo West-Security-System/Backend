@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const initSqlJs = require('sql.js');
 
-const databasePath = path.join(__dirname, '..', 'data', 'west_control.db');
+const databasePath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'west_control.db');
 let database;
 
 function saveDatabase() {
@@ -102,8 +102,25 @@ async function initDatabase() {
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
         FOREIGN KEY (horario_id) REFERENCES horarios(id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS registros_operativos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        local_id INTEGER NOT NULL,
+        hora_ingreso TEXT NOT NULL,
+        hora_egreso TEXT,
+        observaciones TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+        FOREIGN KEY (local_id) REFERENCES locales(id) ON DELETE RESTRICT
+      );
+      CREATE INDEX IF NOT EXISTS idx_registros_operativos_ingreso
+        ON registros_operativos (hora_ingreso DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_registros_operativos_activos
+        ON registros_operativos (hora_egreso, hora_ingreso DESC);
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (6);
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (7);
     `);
     database.run('COMMIT');
     saveDatabase();
@@ -555,6 +572,43 @@ function hasLocalRelations(localId) {
   return Number(row.total) > 0;
 }
 
+function listOperationalRecords(filters = {}) {
+  const conditions = [];
+  const values = [];
+  if (filters.localId !== undefined) {
+    conditions.push('r.local_id = ?');
+    values.push(filters.localId);
+  }
+  if (filters.userId !== undefined) {
+    conditions.push('r.usuario_id = ?');
+    values.push(filters.userId);
+  }
+  if (filters.from) {
+    conditions.push('datetime(r.hora_ingreso) >= datetime(?)');
+    values.push(filters.from);
+  }
+  if (filters.to) {
+    conditions.push('datetime(r.hora_ingreso) <= datetime(?)');
+    values.push(filters.to);
+  }
+  if (filters.activeOnly) conditions.push('r.hora_egreso IS NULL');
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const statement = database.prepare(`
+    SELECT r.id, r.usuario_id, u.username, r.local_id, l.nombre AS local_nombre,
+      r.hora_ingreso, r.hora_egreso, r.observaciones
+    FROM registros_operativos r
+    INNER JOIN usuarios u ON u.id = r.usuario_id
+    INNER JOIN locales l ON l.id = r.local_id
+    ${where}
+    ORDER BY r.hora_ingreso DESC, r.id DESC LIMIT ?
+  `);
+  statement.bind([...values, filters.limit]);
+  const records = [];
+  while (statement.step()) records.push(statement.getAsObject());
+  statement.free();
+  return records;
+}
+
 function deleteLocalById(id) {
   const currentLocal = findLocalById(id);
   if (!currentLocal) {
@@ -616,5 +670,6 @@ module.exports = {
   insertLocal,
   updateLocalById,
   deleteLocalById,
-  hasLocalRelations
+  hasLocalRelations,
+  listOperationalRecords
 };
