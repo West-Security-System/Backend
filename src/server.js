@@ -105,6 +105,7 @@ app.use(session({
   }
 }));
 app.use('/api/admin', require('./routes/adminOperationalRoutes'));
+app.use('/api', require('./routes/guardServicesRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {
@@ -694,8 +695,6 @@ app.use((error, req, res, next) => {
   if (isInvalidJson) responseError.fields = ['body'];
   else if (error.fields) responseError.fields = error.fields;
   if (isDevelopment) responseError.stack = error.stack;
-  if (status === 500) console.error(error);
-
   res.status(status).json({ data: null, error: responseError });
 });
 
@@ -707,9 +706,7 @@ initDatabase().then(async () => {
     ensureAdminCredentials({ username: adminUsername, passwordHash: await bcrypt.hash(adminPassword, 12) });
   }
 
-  const server = app.listen(port, () => {
-    console.log(`West Security API listening on port ${port}`);
-  });
+  const server = app.listen(port);
 
   const shutdown = async () => {
     server.close();
@@ -720,6 +717,5 @@ initDatabase().then(async () => {
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
 }).catch((error) => {
-  console.error(`Database initialization failed: ${error.message}`);
   process.exitCode = 1;
 });

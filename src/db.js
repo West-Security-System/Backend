@@ -609,6 +609,54 @@ function listOperationalRecords(filters = {}) {
   return records;
 }
 
+function listGuardServices(userId) {
+  const statement = database.prepare(`
+    SELECT DISTINCT l.id, l.nombre
+    FROM guardia_horarios gh
+    INNER JOIN horarios h ON h.id = gh.horario_id
+    INNER JOIN locales l ON l.id = h.servicio_id
+    WHERE gh.usuario_id = ?
+    ORDER BY l.nombre COLLATE NOCASE, l.id
+  `);
+  statement.bind([userId]);
+  const services = [];
+  while (statement.step()) services.push(statement.getAsObject());
+  statement.free();
+  return services;
+}
+
+function findAssignedService(userId, serviceName) {
+  const statement = database.prepare(`
+    SELECT DISTINCT l.id, l.nombre
+    FROM guardia_horarios gh
+    INNER JOIN horarios h ON h.id = gh.horario_id
+    INNER JOIN locales l ON l.id = h.servicio_id
+    WHERE gh.usuario_id = ? AND l.nombre = ? COLLATE NOCASE
+    LIMIT 1
+  `);
+  statement.bind([userId, serviceName]);
+  const service = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return service;
+}
+
+function listGuardSchedules(userId, serviceId) {
+  const statement = database.prepare(`
+    SELECT h.id, h.servicio_id, l.nombre AS servicio_nombre, h.dias,
+      h.hora_inicio, h.hora_fin, h.capacidad
+    FROM guardia_horarios gh
+    INNER JOIN horarios h ON h.id = gh.horario_id
+    INNER JOIN locales l ON l.id = h.servicio_id
+    WHERE gh.usuario_id = ? AND h.servicio_id = ?
+    ORDER BY h.hora_inicio, h.id
+  `);
+  statement.bind([userId, serviceId]);
+  const schedules = [];
+  while (statement.step()) schedules.push(statement.getAsObject());
+  statement.free();
+  return schedules;
+}
+
 function deleteLocalById(id) {
   const currentLocal = findLocalById(id);
   if (!currentLocal) {
@@ -671,5 +719,8 @@ module.exports = {
   updateLocalById,
   deleteLocalById,
   hasLocalRelations,
-  listOperationalRecords
+  listOperationalRecords,
+  listGuardServices,
+  findAssignedService,
+  listGuardSchedules
 };
