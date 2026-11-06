@@ -108,6 +108,10 @@ async function initDatabase() {
         local_id INTEGER NOT NULL,
         hora_ingreso TEXT NOT NULL,
         hora_egreso TEXT,
+        latitud_ingreso REAL,
+        longitud_ingreso REAL,
+        latitud_egreso REAL,
+        longitud_egreso REAL,
         observaciones TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
@@ -121,13 +125,27 @@ async function initDatabase() {
       VALUES (6);
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (7);
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (8);
     `);
+    ensureOperationalCoordinateColumns();
     database.run('COMMIT');
     saveDatabase();
   } catch (error) {
     database.run('ROLLBACK');
     throw error;
   }
+}
+
+function ensureOperationalCoordinateColumns() {
+  const columns = database.exec('PRAGMA table_info(registros_operativos)')[0].values.map((row) => row[1]);
+  const missingColumns = [
+    ['latitud_ingreso', 'REAL'],
+    ['longitud_ingreso', 'REAL'],
+    ['latitud_egreso', 'REAL'],
+    ['longitud_egreso', 'REAL']
+  ].filter(([name]) => !columns.includes(name));
+  for (const [name, type] of missingColumns) database.run(`ALTER TABLE registros_operativos ADD COLUMN ${name} ${type}`);
 }
 
 function ensureAdminCredentials({ username, passwordHash }) {
@@ -609,6 +627,41 @@ function listOperationalRecords(filters = {}) {
   return records;
 }
 
+function insertOperationalEntry({ userId, localId, latitud, longitud }) {
+  database.run(`
+    INSERT INTO registros_operativos (usuario_id, local_id, hora_ingreso, latitud_ingreso, longitud_ingreso)
+    VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?)
+  `, [userId, localId, latitud, longitud]);
+  const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = last_insert_rowid()');
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  saveDatabase();
+  return record;
+}
+
+function closeOperationalEntry({ userId, latitud, longitud }) {
+  const search = database.prepare(`
+    SELECT id FROM registros_operativos
+    WHERE usuario_id = ? AND hora_egreso IS NULL
+    ORDER BY hora_ingreso DESC, id DESC LIMIT 1
+  `);
+  search.bind([userId]);
+  const match = search.step() ? search.getAsObject() : null;
+  search.free();
+  if (!match) return null;
+  database.run(`
+    UPDATE registros_operativos
+    SET hora_egreso = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), latitud_egreso = ?, longitud_egreso = ?
+    WHERE id = ? AND usuario_id = ? AND hora_egreso IS NULL
+  `, [latitud, longitud, match.id, userId]);
+  const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = ? AND usuario_id = ?');
+  statement.bind([match.id, userId]);
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  saveDatabase();
+  return record;
+}
+
 function listGuardServices(userId) {
   const statement = database.prepare(`
     SELECT DISTINCT l.id, l.nombre
@@ -722,5 +775,7 @@ module.exports = {
   listOperationalRecords,
   listGuardServices,
   findAssignedService,
-  listGuardSchedules
+  listGuardSchedules,
+  insertOperationalEntry,
+  closeOperationalEntry
 };

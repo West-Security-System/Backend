@@ -35,6 +35,7 @@ const {
   hasLocalRelations
 } = require('./db');
 const bcrypt = require('bcryptjs');
+const { validateCoordinates } = require('./utils/coordinates');
 
 const app = express();
 const sessionSecret = process.env.SESSION_SECRET;
@@ -106,6 +107,7 @@ app.use(session({
 }));
 app.use('/api/admin', require('./routes/adminOperationalRoutes'));
 app.use('/api', require('./routes/guardServicesRoutes'));
+app.use('/api', require('./routes/operationalCheckinRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {
@@ -397,19 +399,6 @@ app.put('/api/admin/usuarios/:id/bloqueos', requiereAuth, requiereAdmin, (req, r
     next(error);
   }
 });
-
-function validateCoordinates({ latitud, longitud }) {
-  const latitude = Number(latitud);
-  const longitude = Number(longitud);
-
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw createApiError(422, 'INVALID_LATITUDE', 'La latitud debe estar entre -90 y 90.', ['latitud']);
-  }
-
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw createApiError(422, 'INVALID_LONGITUDE', 'La longitud debe estar entre -180 y 180.', ['longitud']);
-  }
-}
 
 function normalizeSchedulePayload(payload) {
   const { servicio_id: servicioId, dias, hora_inicio: horaInicio, hora_fin: horaFin, capacidad } = payload || {};
