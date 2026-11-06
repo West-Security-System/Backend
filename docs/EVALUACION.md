@@ -150,7 +150,41 @@ Criterios que hoy están en rojo y, para cada uno, una explicación breve de **c
 
 > **Tests (informativo):** hoy tenés **1** archivo(s) de test; la meta es **5**, pero **no** es una compuerta del semáforo. Para acercarte, agregá tests de los flujos principales (servicios y endpoints) y corré la suite con coverage.
 
-## 6. Anexo: dónde mirar
+## 6. Actividad en clase (miércoles y viernes)
+
+> Se consideran las **23 clases** del período (miércoles y viernes; Nov 4 y 6 quedan afuera porque el calendario las marca sin clase). `Commits` = commits de trabajo (no-merge); `Merges` = merges de PR (también son push). Los días sin actividad dicen **sin actividad**.
+
+### gonza-carelli
+
+**10/23 clases con actividad** · 23 commits · 21 merges
+
+| Fecha | Marca | Repositorios | Commits / merges |
+|---|:--:|---|--:|
+| 2026-08-14 | No | sin actividad | 0 / 0 |
+| 2026-08-19 | No | sin actividad | 0 / 0 |
+| 2026-08-21 | No | sin actividad | 0 / 0 |
+| 2026-08-26 | No | sin actividad | 0 / 0 |
+| 2026-08-28 | No | sin actividad | 0 / 0 |
+| 2026-09-02 | **Sí** | Frontend | 1 / 0 |
+| 2026-09-04 | No | sin actividad | 0 / 0 |
+| 2026-09-09 | **Sí** | Backend | 4 / 2 |
+| 2026-09-11 | No | sin actividad | 0 / 0 |
+| 2026-09-16 | No | sin actividad | 0 / 0 |
+| 2026-09-18 | No | sin actividad | 0 / 0 |
+| 2026-09-23 | **Sí** | Backend | 2 / 2 |
+| 2026-09-25 | **Sí** | Backend, Frontend | 4 / 4 |
+| 2026-09-30 | **Sí** | Frontend | 1 / 1 |
+| 2026-10-02 | **Sí** | Backend, Frontend | 2 / 1 |
+| 2026-10-07 | **Sí** | Backend, Frontend | 4 / 6 |
+| 2026-10-09 | **Sí** | Backend | 1 / 1 |
+| 2026-10-14 | No | sin actividad | 0 / 0 |
+| 2026-10-16 | No | sin actividad | 0 / 0 |
+| 2026-10-21 | **Sí** | Frontend | 1 / 1 |
+| 2026-10-23 | No | sin actividad | 0 / 0 |
+| 2026-10-28 | No | sin actividad | 0 / 0 |
+| 2026-10-30 | **Sí** | Backend, Frontend | 3 / 3 |
+
+## 7. Anexo: dónde mirar
 
 Archivos donde el análisis encontró cada señal en rojo (sin número de línea, a propósito):
 
