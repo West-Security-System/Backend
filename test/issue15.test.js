@@ -101,30 +101,51 @@ test('Issue 15 rejects invalid coordinates before marking and stores valid check
   assert.equal(empty.response.status, 200);
   assert.deepEqual(empty.json.data.registros, []);
 
+  const unauthenticatedExit = await request('/api/guardias/egreso', {
+    method: 'POST',
+    body: { latitud: -32.9, longitud: -68.8 }
+  });
+  assert.equal(unauthenticatedExit.response.status, 401);
+  const missingActiveExit = await request('/api/guardias/egreso', {
+    method: 'POST',
+    cookie: guardCookie,
+    body: { latitud: -32.9, longitud: -68.8 }
+  });
+  assert.equal(missingActiveExit.response.status, 404);
+
   const entered = await request('/api/ingreso', {
     method: 'POST', cookie: guardCookie,
     body: { local_id: localId, latitud: -32.9, longitud: -68.8 }
   });
   assert.equal(entered.response.status, 201);
   assert.equal(entered.json.data.registro.latitud_ingreso, -32.9);
+  const outsideRadiusExit = await request('/api/guardias/egreso', {
+    method: 'POST',
+    cookie: guardCookie,
+    body: { latitud: 0, longitud: 0 }
+  });
+  assert.equal(outsideRadiusExit.response.status, 403);
   const active = await request('/api/admin/activos', { cookie: adminCookie });
   assert.equal(active.response.status, 200);
   assert.equal(active.json.data.registros.length, 1);
   assert.equal(active.json.data.registros[0].id, entered.json.data.registro.id);
   const missingExitCoordinates = await request('/api/egreso', { method: 'POST', cookie: guardCookie, body: {} });
   assert.equal(missingExitCoordinates.response.status, 422);
-  const exited = await request('/api/egreso', {
-    method: 'POST', cookie: guardCookie, body: { latitud: -33, longitud: -69 }
+  const exited = await request('/api/guardias/egreso', {
+    method: 'POST', cookie: guardCookie, body: { latitud: -32.9001, longitud: -68.8 }
   });
   assert.equal(exited.response.status, 200);
-  assert.equal(exited.json.data.registro.latitud_egreso, -33);
+  assert.equal(exited.json.data.registro.latitud_egreso, -32.9001);
+  assert.equal(exited.json.data.registro.estado, 'cerrado');
+  assert.ok(Number.isInteger(exited.json.data.registro.duracion_segundos));
+  assert.ok(exited.json.data.registro.duracion_segundos >= 0);
   const noLongerActive = await request('/api/admin/activos', { cookie: adminCookie });
   assert.deepEqual(noLongerActive.json.data.registros, []);
   const records = await request('/api/admin/registros', { cookie: adminCookie });
   assert.equal(records.json.data.registros.length, 1);
   assert.match(records.json.data.registros[0].hora_ingreso, /^\d{4}-\d{2}-\d{2}T.*Z$/);
   const repeatedExit = await request('/api/egreso', {
-    method: 'POST', cookie: guardCookie, body: { latitud: -33, longitud: -69 }
+    method: 'POST', cookie: guardCookie, body: { latitud: -32.9, longitud: -68.8 }
   });
   assert.equal(repeatedExit.response.status, 404);
 });

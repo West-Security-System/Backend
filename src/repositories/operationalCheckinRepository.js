@@ -1,15 +1,19 @@
-const { findLocalById, insertOperationalEntry, closeOperationalEntry } = require('../db');
+const database = require('../db');
 
 function localExists(localId) {
-  return Boolean(findLocalById(localId));
+  return Boolean(database.findLocalById(localId));
 }
 
 function createEntry(data) {
-  return insertOperationalEntry(data);
+  return database.insertOperationalEntry(data);
 }
 
 function closeEntry(data) {
-  return closeOperationalEntry(data);
+  return database.closeOperationalEntry(data);
 }
 
-module.exports = { localExists, createEntry, closeEntry };
+function findOpenEntry(userId) {
+  return database.findOpenOperationalEntry(userId);
+}
+
+module.exports = { localExists, createEntry, closeEntry, findOpenEntry };

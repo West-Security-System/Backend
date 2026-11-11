@@ -1,36 +1,42 @@
-# Reporte metodológico — Issue 16
+# Reporte metodológico — Issue 17
 
 ## Alcance y arquitectura
 
-- Se copió la base de B15 a `west-security-backend/`; todos los cambios de esta entrega quedan dentro de `back/v16-issue-B16/`.
-- Se conserva la separación existente `src/routes/`, `src/controllers/`, `src/services/`, `src/repositories/`, `src/middlewares/`, `src/utils/`, `test/`, `tests/` y `src/server.js`.
-- El ingreso B16 se implementa en rutas, controlador, servicio y repositorio propios; la persistencia se integra con SQLite mediante consultas parametrizadas.
+- Se copió la base B16 a `back/v17-issue-B17/west-security-backend/`; todos los cambios de esta entrega quedan dentro de `back/v17-issue-B17/`.
+- Se conserva la separación `src/routes/`, `src/controllers/`, `src/services/`, `src/repositories/`, `src/middlewares/`, `src/utils/`, `test/`, `tests/` y `src/server.js`.
+- No se copiaron credenciales locales ni la base de datos de desarrollo. Las credenciales y secretos de ejecución continúan obteniéndose exclusivamente desde variables de entorno; `.env.example` contiene valores de ejemplo.
 
 ## Cambios realizados
 
-- Se agregó `src/utils/geo.js` con distancia Haversine en metros, incluyendo manejo numérico estable para coordenadas antipodales.
-- Se agregó `POST /api/guardias`, protegido por autenticación de guardia y validación de coordenadas.
-- El servicio comprueba servicio existente, horario asignado al guardia y distancia al servicio. Acepta distancias de hasta 100 m; distancias mayores devuelven 403 antes de cualquier inserción.
-- Se persisten servicio, horario, coordenadas, timestamp generado por el servidor y estado `abierto`. La base conserva compatibilidad con el ingreso/egreso anterior mediante migración de columnas; al cerrar un registro, su estado pasa a `cerrado`.
-- Los errores internos se centralizaron en middleware comprobable; los errores inesperados responden 500 sin exponer detalles en producción.
-- Se amplió la suite de unidad e integración: ahora hay 13 archivos de pruebas entre `test/` y `tests/`, con casos 200/201, 401, 403, 404, 409, 422 y 500.
-- `npm run test:coverage` instrumenta todos los archivos JavaScript bajo `src/`, aplica umbrales de 85% de líneas/sentencias, 85% de funciones y 75% de ramas, y genera `coverage/coverage-summary.json`, `coverage/cobertura-coverage.xml` y `coverage/coverage.xml`.
+- Se implementó `POST /api/guardias/egreso`, protegido por la sesión de guardia y el middleware de validación de latitud/longitud. Se mantiene `POST /api/egreso` como ruta compatible.
+- El servicio obtiene el turno abierto y las coordenadas del servicio asociado. Calcula la distancia con el Haversine reutilizable de `src/utils/geo.js`; acepta hasta 100 metros inclusive y rechaza una distancia mayor con HTTP 403, sin cerrar el turno.
+- En el cierre se usa timestamp UTC del servidor, se calcula duración total en segundos y se persisten la ubicación de salida, `hora_egreso`, `duracion_segundos` y estado `cerrado`.
+- Se añadió la migración de esquema 10 para `duracion_segundos`. Las filas históricas se conservan; su duración queda nula si el cierre ocurrió antes de la migración.
+- Se contemplan turno inexistente (404), cierre concurrente (409), coordenadas inválidas (422), sesión no autenticada (401) y fallos internos (500) mediante el manejador existente.
+- Se añadieron pruebas unitarias, de integración y persistencia. La suite contiene 16 archivos de prueba entre `test/` y `tests/`.
+- `npm run test:coverage` instrumenta `src/**/*.js`, aplica gates de 85% para líneas/sentencias, 85% para funciones y 75% para ramas, y genera `coverage/coverage-summary.json`, `coverage/cobertura-coverage.xml` y `coverage/coverage.xml`.
 
 ## Verificación y cobertura
 
-- [x] `npm test`: 30 pruebas aprobadas.
-- [x] `npm run test:coverage`: gate de cobertura aprobado sobre `src/**/*.js`, incluyendo `src/server.js` y `src/db.js`.
-- [x] Cobertura de líneas/sentencias: 90.82% (1,802/1,983); funciones: 100%; ramas: 80.16%. Valores registrados en `west-security-backend/coverage/coverage-summary.json`.
-- [x] Distancia dentro de 100 m aceptada; fuera del radio rechazada con 403 sin crear filas.
-- [x] Ingreso guarda horario, coordenadas, timestamp y estado abierto; un segundo ingreso activo devuelve 409.
-- [x] La suite unitaria y de integración cubre autenticación, permisos, validación, persistencia y el manejo seguro de errores 500.
+- [x] `npm test`: 39 pruebas aprobadas.
+- [x] `npm run test:coverage`: gate aprobado para todos los archivos fuente bajo `src/`.
+- [x] Cobertura global: 91,09% líneas/sentencias, 100% funciones y 81,36% ramas. Fuente: `west-security-backend/coverage/coverage-summary.json`.
+- [x] Se verificó el límite de 100 metros inclusive y el rechazo fuera de rango; el intento rechazado conserva el turno abierto.
+- [x] Se verificó persistencia del timestamp, duración en segundos, coordenadas y estado cerrado, además de compatibilidad de migración.
+- [x] `node --check` pasó en los archivos JavaScript de `src/`, `test/` y `tests/`.
+- [x] No se encontraron `console.log`, `console.error` ni `debugger` en código de producción.
+- [x] Se generaron los reportes JSON y Cobertura XML solicitados.
+
+La cobertura y los casos funcionales se verificaron localmente. La puntuación exacta de “Calidad 100/100” depende del evaluador externo; no se afirma como certificada sin ejecutar esa herramienta.
 
 ## Checklist de aceptación
 
-- [x] Arquitectura por capas conservada.
-- [x] Haversine implementado y probado para coordenadas idénticas, ecuatoriales, polares, antimeridiano y antipodales.
-- [x] Endpoint `POST /api/guardias` autenticado.
-- [x] Registro dentro del radio con estado `abierto`.
-- [x] HTTP 403 para distancia mayor a 100 m y verificación de ausencia de inserción.
-- [x] Cinco o más archivos de test y cobertura automatizada con artefactos generados.
-- [x] Consultas SQL parametrizadas; sin credenciales nuevas hardcodeadas ni sentencias de depuración.
+- [x] Estructura por capas preservada.
+- [x] Endpoint autenticado `POST /api/guardias/egreso` implementado y ruta anterior conservada.
+- [x] El egreso requiere turno abierto y servicio relacionado.
+- [x] Geolocalización de egreso hasta 100 m inclusive; 403 fuera del radio y sin cerrar el registro.
+- [x] Duración en segundos calculada y guardada; turno marcado `cerrado`.
+- [x] Respuestas verificadas: 200, 401, 403, 404, 409 y 422; manejo 500 cubierto en la suite existente.
+- [x] 16 archivos de prueba, 39 pruebas aprobadas y cobertura superior al 80%.
+- [x] SQL parametrizado en las nuevas consultas y actualizaciones; sin sentencias de depuración.
+- [x] Artefactos `coverage/coverage-summary.json` y `coverage/coverage.xml` generados.
