@@ -1,5 +1,9 @@
 const repository = require('../repositories/operationalCheckinRepository');
 const apiError = require('../utils/apiError');
+const { distanceMeters } = require('../utils/geo');
+const { calculateDurationSeconds } = require('../utils/duration');
+
+const MAX_DISTANCE_METERS = 100;
 
 function parseLocalId(value) {
   const localId = Number(value);
@@ -15,8 +19,22 @@ function checkIn(userId, body, coordinates) {
 }
 
 function checkOut(userId, coordinates) {
-  const record = repository.closeEntry({ userId, ...coordinates });
-  if (!record) throw apiError(404, 'ACTIVE_ENTRY_NOT_FOUND', 'No hay un ingreso activo para este guardia.');
+  const activeEntry = repository.findOpenEntry(userId);
+  if (!activeEntry) {
+    throw apiError(404, 'ACTIVE_ENTRY_NOT_FOUND', 'No hay un ingreso activo para este guardia.');
+  }
+  const serviceCoordinates = {
+    latitud: activeEntry.servicio_latitud,
+    longitud: activeEntry.servicio_longitud
+  };
+  if (distanceMeters(serviceCoordinates, coordinates) > MAX_DISTANCE_METERS) {
+    throw apiError(403, 'OUTSIDE_SERVICE_RADIUS', 'El egreso debe registrarse dentro de los 100 metros del servicio.');
+  }
+
+  const timestamp = new Date().toISOString();
+  const durationSeconds = calculateDurationSeconds(activeEntry.hora_ingreso, timestamp);
+  const record = repository.closeEntry({ userId, ...coordinates, timestamp, durationSeconds });
+  if (!record) throw apiError(409, 'ACTIVE_ENTRY_CHANGED', 'El turno activo ya fue cerrado.');
   return record;
 }
 

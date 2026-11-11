@@ -41,6 +41,7 @@ test('database migration adds check-in columns and preserves legacy open and clo
   const records = database.listOperationalRecords({ limit: 10 });
   assert.equal(records.length, 2);
   assert.equal(records.find((record) => record.hora_egreso)?.estado, 'cerrado');
+  assert.equal(records.find((record) => record.hora_egreso)?.duracion_segundos, null);
   assert.equal(records.find((record) => !record.hora_egreso)?.estado, 'abierto');
 
   const closed = database.closeOperationalEntry({ userId: 1, latitud: 0, longitud: 0 });

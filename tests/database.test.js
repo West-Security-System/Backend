@@ -133,9 +133,21 @@ test('database schedules, services, assignments, records, and relation checks ar
   });
   assert.equal(record.estado, 'abierto');
   assert.equal(database.hasOpenOperationalEntry(guard.id), true);
+  const activeEntry = database.findOpenOperationalEntry(guard.id);
+  assert.equal(activeEntry.local_id, service.id);
+  assert.equal(activeEntry.servicio_latitud, 0);
+  assert.equal(activeEntry.servicio_longitud, 0);
   assert.equal(database.listOperationalRecords({ localId: service.id, userId: guard.id, activeOnly: true, limit: 10 }).length, 1);
-  const closedRecord = database.closeOperationalEntry({ userId: guard.id, latitud: 0.1, longitud: 0.1 });
+  const closedRecord = database.closeOperationalEntry({
+    userId: guard.id,
+    latitud: 0.1,
+    longitud: 0.1,
+    timestamp: '2026-11-11T18:00:00.000Z',
+    durationSeconds: 28800
+  });
   assert.equal(closedRecord.estado, 'cerrado');
+  assert.equal(closedRecord.hora_egreso, '2026-11-11T18:00:00.000Z');
+  assert.equal(closedRecord.duracion_segundos, 28800);
   assert.equal(database.hasOpenOperationalEntry(guard.id), false);
   assert.equal(database.listOperationalRecords({
     from: '2026-11-11T00:00:00Z',
