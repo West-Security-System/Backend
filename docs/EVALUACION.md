@@ -3,7 +3,7 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación III (RepoSense + análisis de calidad + constancia). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-11-06.
+> Generado: 2026-11-11.
 
 ## 1. Veredicto
 
@@ -13,10 +13,10 @@
 | Índice de calidad de servicios | **100/100** (mínimo 50) |
 | Criterios cumplidos | **14/15** |
 | Aprobado (semáforo) | **NO** |
-| Código (LOC) | 1,466 |
-| Archivos de código | 14 |
-| Tests (archivos) | 1 |
-| Cobertura de líneas | 53.5% (mínimo 80%) |
+| Código (LOC) | 1,591 |
+| Archivos de código | 20 |
+| Tests (archivos) | 2 |
+| Cobertura de líneas | 48.5% (mínimo 80%) |
 | Capas detectadas | presentacion, logica, datos |
 | Pushes directos a `main` (sin PR) | 0 |
 
@@ -26,7 +26,7 @@
 
 | Autor | Commits | Código (LOC) | Tests (LOC) | Docs (LOC) | Días activos | % del código |
 |---|---:|---:|---:|---:|---:|---:|
-| gonza-carelli | 15 | 1,672 | 102 | 31 | 7 | 100% |
+| gonza-carelli | 16 | 1,815 | 174 | 39 | 8 | 100% |
 
 > _El LOC de autoría lo calcula RepoSense sobre el historial y puede diferir del LOC de código del análisis de calidad (que mira solo el estado de `main`)._
 
@@ -36,7 +36,7 @@
 
 | Alumno | Sesiones | Cumplimiento | Pausa | Recencia | IC | Nivel | Para subir de nivel |
 |---|--:|--:|--:|--:|--:|--|--|
-| gonza-carelli | 9 | 39% | 14 d | 57% | **33** | No aprueba | Cumplimiento 39% (mín. 50%) |
+| gonza-carelli | 10 | 39% | 14 d | 64% | **34** | No aprueba | Cumplimiento 39% (mín. 50%) |
 
 > Para aprobar el IC: **2 sesiones por semana** sostenidas, sin pausas mayores a **10 días** y con actividad en las **últimas 2 semanas**. Se excluyen merges, bots y al docente. Zona horaria UTC-3.
 
@@ -54,7 +54,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Porcentaje de bloques de código repetidos (similitud) en el repositorio.
 - **Por qué importa:** Cada copia se mantiene por separado: un arreglo hay que repetirlo y los defectos se multiplican.
-- **Tu resultado:** **9.2%** de duplicación _(máximo 15%)_
+- **Tu resultado:** **8.6%** de duplicación _(máximo 15%)_
 
 ### 3. Secretos hardcodeados (SEC) — OK
 
@@ -108,7 +108,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Complejidad ciclomática: cantidad de caminos posibles dentro de una función (condicionales, bucles, casos).
 - **Por qué importa:** Muchos caminos = difícil de seguir y de probar; suelen esconderse casos sin cubrir.
-- **Tu resultado:** **6** bloque(s) de complejidad alta _(máximo 5 por 1000 LOC (tenés 1466 LOC))_
+- **Tu resultado:** **6** bloque(s) de complejidad alta _(máximo 5 por 1000 LOC (tenés 1591 LOC))_
 
 ### 12. Funciones/métodos largos o con muchos parámetros (Tam) — OK
 
@@ -126,7 +126,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Porcentaje de líneas de código ejecutadas por la suite de tests (cobertura real, no cantidad de archivos de test).
 - **Por qué importa:** Un test que existe pero no ejecuta el código no protege de nada: la cobertura muestra qué partes quedan sin verificar.
-- **Tu resultado:** **53.5%** de líneas cubiertas · fuente: ejecución: c8 _(mínimo 80% de líneas)_
+- **Tu resultado:** **48.5%** de líneas cubiertas · fuente: ejecución: c8 _(mínimo 80% de líneas)_
 - **Para investigar la causa:**
     - ¿Qué módulos o ramas del sistema nunca se ejecutan en los tests?
     - ¿Los tests prueban el camino principal y los errores, o solo el caso feliz?
@@ -136,7 +136,7 @@ Cada aspecto indica **qué mide**, **por qué importa** y **tu resultado**. Cuan
 
 - **Qué mide:** Cantidad de endpoints (rutas HTTP) expuestos por el backend.
 - **Por qué importa:** El backend se mide por lo que expone: pocos endpoints sugiere poca funcionalidad de servicio.
-- **Tu resultado:** **25** endpoint(s) _(mínimo 5)_
+- **Tu resultado:** **27** endpoint(s) _(mínimo 5)_
 
 ## 5. Observaciones y qué falta
 
@@ -144,21 +144,21 @@ Criterios que hoy están en rojo y, para cada uno, una explicación breve de **c
 
 | Criterio | Resultado actual | Meta | Brecha | Cómo alcanzarlo |
 |---|---|---|---|---|
-| Cobertura de tests (Cob) | **53.5%** de líneas cubiertas · fuente: ejecución: c8 | mínimo 80% de líneas | faltan 26.5 pts | Agregá o ampliá tests que ejecuten los módulos sin cubrir (camino principal y errores) y publicá el artefacto (`coverage/lcov.info`, `coverage-summary.json`, `coverage.xml` o `coverage.json`) o corré la suite con coverage. Meta: ≥80% de líneas. |
+| Cobertura de tests (Cob) | **48.5%** de líneas cubiertas · fuente: ejecución: c8 | mínimo 80% de líneas | faltan 31.5 pts | Agregá o ampliá tests que ejecuten los módulos sin cubrir (camino principal y errores) y publicá el artefacto (`coverage/lcov.info`, `coverage-summary.json`, `coverage.xml` o `coverage.json`) o corré la suite con coverage. Meta: ≥80% de líneas. |
 
 > Empezá por las señales de seguridad (**SEC**, **SQL**) y por la **duplicación**: son las que más pesan en el índice y las más rápidas de verificar a ojo. Después de corregir, volvé a correr la medición: el semáforo se recalcula sobre `main`.
 
-> **Tests (informativo):** hoy tenés **1** archivo(s) de test; la meta es **5**, pero **no** es una compuerta del semáforo. Para acercarte, agregá tests de los flujos principales (servicios y endpoints) y corré la suite con coverage.
+> **Tests (informativo):** hoy tenés **2** archivo(s) de test; la meta es **5**, pero **no** es una compuerta del semáforo. Para acercarte, agregá tests de los flujos principales (servicios y endpoints) y corré la suite con coverage.
 
 ## 6. Actividad en clase (miércoles y viernes)
 
-> Se consideran las **23 clases** del período (miércoles y viernes; Nov 4 y 6 quedan afuera porque el calendario las marca sin clase). `Commits` = commits de trabajo (no-merge); `Merges` = merges de PR (también son push). Los días sin actividad dicen **sin actividad**.
+> Se consideran las **23 clases** del período (miércoles y viernes, según `config/constancia.json`; feriados y semanas sin clase descontados). `Commits` = commits de trabajo (no-merge); `Merges` = merges de PR (también son push). Los días sin actividad dicen **sin actividad**.
 
 ### gonza-carelli
 
 **10/23 clases con actividad** · 23 commits · 21 merges
 
-| Fecha | Marca | Repositorios | Commits / merges |
+| Fecha | Actividad | Repositorios | Commits / merges |
 |---|:--:|---|--:|
 | 2026-08-14 | No | sin actividad | 0 / 0 |
 | 2026-08-19 | No | sin actividad | 0 / 0 |
