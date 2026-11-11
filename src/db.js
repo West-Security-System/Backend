@@ -106,16 +106,19 @@ async function initDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         usuario_id INTEGER NOT NULL,
         local_id INTEGER NOT NULL,
+        horario_id INTEGER,
         hora_ingreso TEXT NOT NULL,
         hora_egreso TEXT,
         latitud_ingreso REAL,
         longitud_ingreso REAL,
         latitud_egreso REAL,
         longitud_egreso REAL,
+        estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto', 'cerrado')),
         observaciones TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
-        FOREIGN KEY (local_id) REFERENCES locales(id) ON DELETE RESTRICT
+        FOREIGN KEY (local_id) REFERENCES locales(id) ON DELETE RESTRICT,
+        FOREIGN KEY (horario_id) REFERENCES horarios(id) ON DELETE RESTRICT
       );
       CREATE INDEX IF NOT EXISTS idx_registros_operativos_ingreso
         ON registros_operativos (hora_ingreso DESC, id DESC);
@@ -127,8 +130,11 @@ async function initDatabase() {
       VALUES (7);
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (8);
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (9);
     `);
     ensureOperationalCoordinateColumns();
+    ensureOperationalCheckinColumns();
     database.run('COMMIT');
     saveDatabase();
   } catch (error) {
@@ -146,6 +152,15 @@ function ensureOperationalCoordinateColumns() {
     ['longitud_egreso', 'REAL']
   ].filter(([name]) => !columns.includes(name));
   for (const [name, type] of missingColumns) database.run(`ALTER TABLE registros_operativos ADD COLUMN ${name} ${type}`);
+}
+
+function ensureOperationalCheckinColumns() {
+  const columns = database.exec('PRAGMA table_info(registros_operativos)')[0].values.map((row) => row[1]);
+  if (!columns.includes('horario_id')) database.run('ALTER TABLE registros_operativos ADD COLUMN horario_id INTEGER');
+  if (!columns.includes('estado')) {
+    database.run("ALTER TABLE registros_operativos ADD COLUMN estado TEXT NOT NULL DEFAULT 'abierto'");
+    database.run("UPDATE registros_operativos SET estado = 'cerrado' WHERE hora_egreso IS NOT NULL");
+  }
 }
 
 function ensureAdminCredentials({ username, passwordHash }) {
@@ -613,7 +628,7 @@ function listOperationalRecords(filters = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const statement = database.prepare(`
     SELECT r.id, r.usuario_id, u.username, r.local_id, l.nombre AS local_nombre,
-      r.hora_ingreso, r.hora_egreso, r.observaciones
+      r.horario_id, r.hora_ingreso, r.hora_egreso, r.estado, r.observaciones
     FROM registros_operativos r
     INNER JOIN usuarios u ON u.id = r.usuario_id
     INNER JOIN locales l ON l.id = r.local_id
@@ -627,11 +642,12 @@ function listOperationalRecords(filters = {}) {
   return records;
 }
 
-function insertOperationalEntry({ userId, localId, latitud, longitud }) {
+function insertOperationalEntry({ userId, localId, scheduleId = null, latitud, longitud, timestamp = new Date().toISOString() }) {
   database.run(`
-    INSERT INTO registros_operativos (usuario_id, local_id, hora_ingreso, latitud_ingreso, longitud_ingreso)
-    VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?)
-  `, [userId, localId, latitud, longitud]);
+    INSERT INTO registros_operativos
+      (usuario_id, local_id, horario_id, hora_ingreso, latitud_ingreso, longitud_ingreso, estado)
+    VALUES (?, ?, ?, ?, ?, ?, 'abierto')
+  `, [userId, localId, scheduleId, timestamp, latitud, longitud]);
   const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = last_insert_rowid()');
   const record = statement.step() ? statement.getAsObject() : null;
   statement.free();
@@ -651,7 +667,7 @@ function closeOperationalEntry({ userId, latitud, longitud }) {
   if (!match) return null;
   database.run(`
     UPDATE registros_operativos
-    SET hora_egreso = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), latitud_egreso = ?, longitud_egreso = ?
+    SET hora_egreso = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), latitud_egreso = ?, longitud_egreso = ?, estado = 'cerrado'
     WHERE id = ? AND usuario_id = ? AND hora_egreso IS NULL
   `, [latitud, longitud, match.id, userId]);
   const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = ? AND usuario_id = ?');
@@ -660,6 +676,31 @@ function closeOperationalEntry({ userId, latitud, longitud }) {
   statement.free();
   saveDatabase();
   return record;
+}
+
+function hasOpenOperationalEntry(userId) {
+  const statement = database.prepare(`
+    SELECT id FROM registros_operativos
+    WHERE usuario_id = ? AND hora_egreso IS NULL
+    LIMIT 1
+  `);
+  statement.bind([userId]);
+  const exists = statement.step();
+  statement.free();
+  return exists;
+}
+
+function findAssignedSchedule(userId, scheduleId) {
+  const statement = database.prepare(`
+    SELECT h.id, h.servicio_id, h.dias, h.hora_inicio, h.hora_fin, h.capacidad
+    FROM guardia_horarios gh
+    INNER JOIN horarios h ON h.id = gh.horario_id
+    WHERE gh.usuario_id = ? AND gh.horario_id = ?
+  `);
+  statement.bind([userId, scheduleId]);
+  const schedule = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return schedule;
 }
 
 function listGuardServices(userId) {
@@ -777,5 +818,8 @@ module.exports = {
   findAssignedService,
   listGuardSchedules,
   insertOperationalEntry,
-  closeOperationalEntry
+  closeOperationalEntry,
+  hasOpenOperationalEntry,
+  findAssignedSchedule,
+  findScheduleById
 };
