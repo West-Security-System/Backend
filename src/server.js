@@ -36,19 +36,17 @@ const {
 } = require('./db');
 const bcrypt = require('bcryptjs');
 const { validateCoordinates } = require('./utils/coordinates');
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) throw new Error('SESSION_SECRET must be configured.');
 const port = Number(process.env.PORT || 3000);
 const version = process.env.APP_VERSION || '0.1.0';
-const isDevelopment = process.env.NODE_ENV === 'development';
 const sessionMaxAge = Number(process.env.SESSION_MAX_AGE_MS || 86400000);
 const cookieSecure = process.env.COOKIE_SECURE === 'true';
 const allowedClientOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 const allowedRoles = new Set(['admin', 'guardia']);
-
-const supportedStatuses = new Set([400, 401, 403, 404, 409, 422, 500]);
 
 function sendSuccess(res, data, status = 200) {
   res.status(status).json({ data, error: null });
@@ -108,6 +106,7 @@ app.use(session({
 app.use('/api/admin', require('./routes/adminOperationalRoutes'));
 app.use('/api', require('./routes/guardServicesRoutes'));
 app.use('/api', require('./routes/operationalCheckinRoutes'));
+app.use('/api', require('./routes/guardiasRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {
@@ -668,24 +667,7 @@ app.use((req, res, next) => {
   next(createApiError(404, 'NOT_FOUND', 'Ruta no encontrada.'));
 });
 
-app.use((error, req, res, next) => {
-  const status = supportedStatuses.has(error.status) ? error.status : 500;
-  const isInvalidJson = error.type === 'entity.parse.failed'
-    || error.name === 'SyntaxError'
-    || (error instanceof SyntaxError && error.status === 400)
-    || (error.status === 400 && /JSON|property name/i.test(error.message || ''));
-  const responseError = {
-    code: isInvalidJson ? 'INVALID_JSON' : (error.code || (status === 500 ? 'INTERNAL_ERROR' : 'HTTP_ERROR')),
-    message: status === 500 && !isDevelopment
-      ? 'Error interno del servidor.'
-      : (isInvalidJson ? 'El cuerpo JSON no es válido.' : error.message)
-  };
-
-  if (isInvalidJson) responseError.fields = ['body'];
-  else if (error.fields) responseError.fields = error.fields;
-  if (isDevelopment) responseError.stack = error.stack;
-  res.status(status).json({ data: null, error: responseError });
-});
+app.use(errorHandler);
 
 initDatabase().then(async () => {
   const adminUsername = process.env.ADMIN_USERNAME?.trim();

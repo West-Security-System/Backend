@@ -1,12 +1,12 @@
 {
-  "name": "west-security-backend-issue-b06",
+  "name": "west-security-backend-issue-b16",
   "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "test:coverage": "c8 --reporter=json-summary --reporter=cobertura --reports-dir=coverage --include=src/middlewares/validateCoordinates.js --include=src/utils/coordinates.js --check-coverage --lines=80 --functions=80 --branches=80 --statements=80 node --test && node -e \"require('node:fs').copyFileSync('coverage/cobertura-coverage.xml', 'coverage/coverage.xml')\""
+    "test:coverage": "c8 --reporter=json-summary --reporter=cobertura --reports-dir=coverage --all --include='src/**/*.js' --check-coverage --lines=85 --functions=85 --branches=75 --statements=85 node --test && node -e \"require('node:fs').copyFileSync('coverage/cobertura-coverage.xml', 'coverage/coverage.xml')\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
