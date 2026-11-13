@@ -4,4 +4,3 @@
 **Calidad de servicios (heurístico):** índice **100/100** · cumple **15/15** · aprobado **SI** · capas **3**
 Detalle completo en [`docs/EVALUACION.md`](docs/EVALUACION.md).
 <!-- calidad:fin -->
-
