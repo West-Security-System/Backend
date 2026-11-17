@@ -3,7 +3,7 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación III (RepoSense + análisis de calidad + constancia). **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas): es una criba para orientar la revisión, **no una nota**.
-> Generado: 2026-11-16.
+> Generado: 2026-11-17.
 
 ## 1. Veredicto
 
@@ -176,11 +176,12 @@ _Cumple **todos** los criterios del semáforo: no hay nada que arreglar para apr
 | 2026-11-11 | **Sí** | Backend, Frontend | 4 / 7 |
 | 2026-11-13 | **Sí** | Frontend | 1 / 1 |
 
-**Fuera de clase:** 1 fecha(s) con actividad · 1 commits · 1 merges
+**Fuera de clase:** 2 fecha(s) con actividad · 1 commits · 1 merges
 
 | Fecha | Repositorios | Commits / merges |
 |---|---|--:|
-| 2026-11-15 | Frontend | 1 / 1 |
+| 2026-11-15 | Frontend | 1 / 0 |
+| 2026-11-16 | Frontend | 0 / 1 |
 
 ## 7. Anexo: dónde mirar
 
