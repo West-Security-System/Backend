@@ -20,8 +20,17 @@ function normalizeDate(value, field, endOfDay = false) {
 function positiveInteger(value, field) {
   if (value === undefined) return undefined;
   const number = Number(value);
-  if (!Number.isInteger(number) || number < 1) throw apiError(422, 'INVALID_FILTER', `${field} debe ser un entero positivo.`, [field]);
+  if (!Number.isSafeInteger(number) || number < 1) throw apiError(422, 'INVALID_FILTER', `${field} debe ser un entero positivo.`, [field]);
   return number;
+}
+
+function aliasedInteger(primary, alias, field) {
+  const primaryId = positiveInteger(primary, field);
+  const aliasId = positiveInteger(alias, field);
+  if (primaryId !== undefined && aliasId !== undefined && primaryId !== aliasId) {
+    throw apiError(422, 'CONFLICTING_FILTER', `${field} contiene valores incompatibles.`, [field]);
+  }
+  return primaryId ?? aliasId;
 }
 
 function normalizeFilters(query, activeOnly) {
@@ -29,11 +38,15 @@ function normalizeFilters(query, activeOnly) {
   const from = normalizeDate(query.desde, 'desde');
   const to = normalizeDate(query.hasta, 'hasta', true);
   if (from && to && from > to) throw apiError(422, 'INVALID_DATE_RANGE', 'desde no puede ser posterior a hasta.', ['desde', 'hasta']);
+  if (query.estado !== undefined && !['abierto', 'cerrado'].includes(query.estado)) {
+    throw apiError(422, 'INVALID_STATE', 'estado debe ser abierto o cerrado.', ['estado']);
+  }
   return {
-    localId: positiveInteger(query.local_id, 'local_id'),
-    userId: positiveInteger(query.usuario_id, 'usuario_id'),
+    localId: aliasedInteger(query.local_id, query.servicio_id, 'local_id'),
+    userId: aliasedInteger(query.usuario_id, query.guardia_id, 'guardia_id'),
     from,
     to,
+    state: query.estado,
     limit: Math.min(limitValue, MAX_LIMIT),
     activeOnly
   };
@@ -52,7 +65,14 @@ function serializeRecord(record) {
 function getSummary(query, activeOnly = false) {
   const filters = normalizeFilters(query, activeOnly);
   const registros = repository.list(filters).map(serializeRecord);
-  return { registros, limite: filters.limit };
+  return { registros, limite: filters.limit, limite_maximo: MAX_LIMIT };
 }
 
-module.exports = { getSummary, serializeRecord };
+function getRecordById(rawId) {
+  const id = positiveInteger(rawId, 'id');
+  const record = repository.findById(id);
+  if (!record) throw apiError(404, 'RECORD_NOT_FOUND', 'El registro operativo no existe.');
+  return serializeRecord(record);
+}
+
+module.exports = { getSummary, getRecordById, serializeRecord };

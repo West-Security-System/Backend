@@ -6,5 +6,6 @@ const router = express.Router();
 router.use(requireAdmin);
 router.get('/activos', controller.listActive);
 router.get('/registros', controller.listRecords);
+router.get('/registros/:id', controller.getRecord);
 
 module.exports = router;

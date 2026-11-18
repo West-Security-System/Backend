@@ -135,6 +135,20 @@ async function initDatabase() {
       VALUES (9);
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (10);
+      CREATE TABLE IF NOT EXISTS notificaciones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        titulo TEXT NOT NULL,
+        mensaje TEXT NOT NULL,
+        leida INTEGER NOT NULL DEFAULT 0 CHECK (leida IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        leida_at TEXT,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_created
+        ON notificaciones (usuario_id, created_at DESC, id DESC);
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (11);
     `);
     ensureOperationalCoordinateColumns();
     ensureOperationalCheckinColumns();
@@ -471,6 +485,16 @@ function findScheduleAssignment(usuarioId, horarioId) {
   return assignment;
 }
 
+function insertNotification({ userId, titulo, mensaje }) {
+  const statement = database.prepare(`
+    INSERT INTO notificaciones (usuario_id, titulo, mensaje, leida)
+    VALUES (?, ?, ?, ?)
+  `);
+  statement.bind([userId, titulo, mensaje, 0]);
+  statement.step();
+  statement.free();
+}
+
 function insertScheduleAssignment({ usuarioId, horarioId }) {
   try {
     const statement = database.prepare(`
@@ -480,6 +504,11 @@ function insertScheduleAssignment({ usuarioId, horarioId }) {
     statement.bind([usuarioId, horarioId]);
     statement.step();
     statement.free();
+    insertNotification({
+      userId: usuarioId,
+      titulo: 'Nueva asignación',
+      mensaje: `Se te asignó el horario ${horarioId}.`
+    });
     saveDatabase();
     return findScheduleAssignment(usuarioId, horarioId);
   } catch (error) {
@@ -491,6 +520,42 @@ function insertScheduleAssignment({ usuarioId, horarioId }) {
     }
     throw error;
   }
+}
+
+function listNotificationsByUser(userId, limit) {
+  const statement = database.prepare(`
+    SELECT id, usuario_id, titulo, mensaje, leida, created_at, leida_at
+    FROM notificaciones
+    WHERE usuario_id = ?
+    ORDER BY datetime(created_at) DESC, id DESC
+    LIMIT ?
+  `);
+  statement.bind([userId, limit]);
+  const notifications = [];
+  while (statement.step()) notifications.push(statement.getAsObject());
+  statement.free();
+  return notifications;
+}
+
+function countUnreadNotifications(userId) {
+  const statement = database.prepare(`
+    SELECT COUNT(*) AS total FROM notificaciones WHERE usuario_id = ? AND leida = ?
+  `);
+  statement.bind([userId, 0]);
+  const total = statement.step() ? Number(statement.getAsObject().total) : 0;
+  statement.free();
+  return total;
+}
+
+function markNotificationsRead(userId) {
+  database.run(`
+    UPDATE notificaciones
+    SET leida = ?, leida_at = CURRENT_TIMESTAMP
+    WHERE usuario_id = ? AND leida = ?
+  `, [1, userId, 0]);
+  const updated = database.getRowsModified();
+  if (updated > 0) saveDatabase();
+  return updated;
 }
 
 function deleteScheduleAssignment(usuarioId, horarioId) {
@@ -621,6 +686,7 @@ function listOperationalRecords(filters = {}) {
       AND (? IS NULL OR datetime(r.hora_ingreso) >= datetime(?))
       AND (? IS NULL OR datetime(r.hora_ingreso) <= datetime(?))
       AND (? = 0 OR r.hora_egreso IS NULL)
+      AND (? IS NULL OR r.estado = ?)
     ORDER BY r.hora_ingreso DESC, r.id DESC LIMIT ?
   `);
   const localId = filters.localId ?? null;
@@ -628,11 +694,30 @@ function listOperationalRecords(filters = {}) {
   const from = filters.from ?? null;
   const to = filters.to ?? null;
   const activeOnly = Number(Boolean(filters.activeOnly));
-  statement.bind([localId, localId, userId, userId, from, from, to, to, activeOnly, filters.limit]);
+  const state = filters.state ?? null;
+  statement.bind([localId, localId, userId, userId, from, from, to, to, activeOnly, state, state, filters.limit]);
   const records = [];
   while (statement.step()) records.push(statement.getAsObject());
   statement.free();
   return records;
+}
+
+function findOperationalRecordById(id) {
+  const statement = database.prepare(`
+    SELECT r.*, u.id AS guardia_id, u.username AS guardia_username, u.rol AS guardia_rol,
+      l.nombre AS local_nombre, l.latitud AS local_latitud, l.longitud AS local_longitud,
+      h.dias AS horario_dias, h.hora_inicio AS horario_hora_inicio,
+      h.hora_fin AS horario_hora_fin, h.capacidad AS horario_capacidad
+    FROM registros_operativos r
+    INNER JOIN usuarios u ON u.id = r.usuario_id
+    INNER JOIN locales l ON l.id = r.local_id
+    LEFT JOIN horarios h ON h.id = r.horario_id
+    WHERE r.id = ?
+  `);
+  statement.bind([id]);
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return record;
 }
 
 function insertOperationalEntry({ userId, localId, scheduleId = null, latitud, longitud, timestamp = new Date().toISOString() }) {
@@ -854,6 +939,9 @@ module.exports = {
   findScheduleAssignment,
   insertScheduleAssignment,
   deleteScheduleAssignment,
+  listNotificationsByUser,
+  countUnreadNotifications,
+  markNotificationsRead,
   listLocales,
   findLocalById,
   findLocalByName,
@@ -862,6 +950,7 @@ module.exports = {
   deleteLocalById,
   hasLocalRelations,
   listOperationalRecords,
+  findOperationalRecordById,
   listGuardServices,
   findAssignedService,
   listGuardSchedules,

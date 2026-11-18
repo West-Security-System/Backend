@@ -16,4 +16,13 @@ function listRecords(req, res, next) {
   }
 }
 
-module.exports = { listActive, listRecords };
+function getRecord(req, res, next) {
+  try {
+    const registro = service.getRecordById(req.params.id);
+    return res.json({ data: { registro }, error: null });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = { listActive, listRecords, getRecord };
