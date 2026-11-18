@@ -108,6 +108,7 @@ app.use('/api', require('./routes/guardServicesRoutes'));
 app.use('/api', require('./routes/operationalCheckinRoutes'));
 app.use('/api', require('./routes/guardiasRoutes'));
 app.use('/api', require('./routes/operationalRecordsRoutes'));
+app.use('/api', require('./routes/notificationsRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {

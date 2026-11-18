@@ -18,5 +18,10 @@ function requireGuardOrAdmin(req, res, next) {
   return authenticate(req, next, ['guardia', 'admin']);
 }
 
+function requireAuthenticated(req, res, next) {
+  return authenticate(req, next, ['guardia', 'admin']);
+}
+
 module.exports = requireGuard;
 module.exports.requireGuardOrAdmin = requireGuardOrAdmin;
+module.exports.requireAuthenticated = requireAuthenticated;
