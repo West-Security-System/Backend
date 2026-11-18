@@ -37,8 +37,12 @@ const {
 const bcrypt = require('bcryptjs');
 const { validateCoordinates } = require('./utils/coordinates');
 const errorHandler = require('./middlewares/errorHandler');
+const securityHeaders = require('./middlewares/securityHeaders');
+const sanitizePayload = require('./middlewares/sanitizePayload');
+const { loginRateLimit } = require('./middlewares/loginRateLimit');
 
 const app = express();
+app.disable('x-powered-by');
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) throw new Error('SESSION_SECRET must be configured.');
 const port = Number(process.env.PORT || 3000);
@@ -71,6 +75,7 @@ function createApiError(status, code, message, fields) {
   return error;
 }
 
+app.use(securityHeaders);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
@@ -91,7 +96,8 @@ app.use((req, res, next) => {
 
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(sanitizePayload);
 app.use(session({
   secret: sessionSecret,
   resave: false,
@@ -117,7 +123,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.post('/api/login', async (req, res, next) => {
+app.post('/api/login', loginRateLimit, async (req, res, next) => {
   const { username, password } = req.body || {};
   const invalidCredentials = createApiError(401, 'INVALID_CREDENTIALS', 'Usuario o contraseña incorrectos.');
 

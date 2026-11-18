@@ -2,19 +2,34 @@ const fs = require('node:fs');
 const path = require('node:path');
 const initSqlJs = require('sql.js');
 
-const databasePath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'west_control.db');
+const defaultDatabasePath = process.env.NODE_ENV === 'production'
+  ? '/app/data/west_control.db'
+  : path.join(process.cwd(), 'data', 'west_control.db');
+const configuredDatabasePath = process.env.DATABASE_PATH || defaultDatabasePath;
+const databasePath = configuredDatabasePath === ':memory:' ? null : path.resolve(configuredDatabasePath);
 let database;
 
 function saveDatabase() {
+  if (!databasePath) return;
   fs.writeFileSync(databasePath, Buffer.from(database.export()));
+}
+
+function runInTransaction(operation) {
+  database.run('BEGIN');
+  try {
+    const result = operation();
+    database.run('COMMIT');
+    return result;
+  } catch (error) {
+    database.run('ROLLBACK');
+    throw error;
+  }
 }
 
 async function initDatabase() {
   const SQL = await initSqlJs();
-  const dataDirectory = path.dirname(databasePath);
-
-  fs.mkdirSync(dataDirectory, { recursive: true });
-  database = fs.existsSync(databasePath)
+  if (databasePath) fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  database = databasePath && fs.existsSync(databasePath)
     ? new SQL.Database(fs.readFileSync(databasePath))
     : new SQL.Database();
 
@@ -149,6 +164,18 @@ async function initDatabase() {
         ON notificaciones (usuario_id, created_at DESC, id DESC);
       INSERT OR IGNORE INTO schema_migrations (version)
       VALUES (11);
+      CREATE TABLE IF NOT EXISTS valores_mensuales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        servicio_id INTEGER NOT NULL,
+        anio INTEGER NOT NULL CHECK (anio >= 1000),
+        mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+        valor REAL NOT NULL CHECK (valor >= 0),
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (servicio_id, anio, mes),
+        FOREIGN KEY (servicio_id) REFERENCES locales(id) ON DELETE CASCADE
+      );
+      INSERT OR IGNORE INTO schema_migrations (version)
+      VALUES (12);
     `);
     ensureOperationalCoordinateColumns();
     ensureOperationalCheckinColumns();
@@ -337,30 +364,25 @@ function listGuardBlockDatesByUserId(userId) {
 }
 
 function replaceGuardBlockDates(userId, blockDates) {
-  const deleteStatement = database.prepare(`DELETE FROM guardia_bloqueos WHERE usuario_id = ?`);
-  deleteStatement.bind([userId]);
-  deleteStatement.step();
-  deleteStatement.free();
-
-  for (const item of blockDates) {
-    const insertStatement = database.prepare(`
-      INSERT INTO guardia_bloqueos (usuario_id, tipo, fecha, fecha_inicio, fecha_fin, motivo)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    insertStatement.bind([
-      userId,
-      item.tipo,
-      item.fecha || null,
-      item.fecha_inicio || null,
-      item.fecha_fin || null,
-      item.motivo || 'indisponibilidad'
-    ]);
-    insertStatement.step();
-    insertStatement.free();
-  }
-
+  runInTransaction(() => {
+    const deleteStatement = database.prepare('DELETE FROM guardia_bloqueos WHERE usuario_id = ?');
+    deleteStatement.bind([userId]);
+    deleteStatement.step();
+    deleteStatement.free();
+    for (const item of blockDates) insertGuardBlockDate(userId, item);
+  });
   saveDatabase();
   return listGuardBlockDatesByUserId(userId);
+}
+
+function insertGuardBlockDate(userId, item) {
+  const statement = database.prepare(`
+    INSERT INTO guardia_bloqueos (usuario_id, tipo, fecha, fecha_inicio, fecha_fin, motivo)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  statement.bind([userId, item.tipo, item.fecha || null, item.fecha_inicio || null, item.fecha_fin || null, item.motivo || 'indisponibilidad']);
+  statement.step();
+  statement.free();
 }
 
 function findAssignmentsForUserInDates(userId, dates) {
@@ -497,20 +519,23 @@ function insertNotification({ userId, titulo, mensaje }) {
 
 function insertScheduleAssignment({ usuarioId, horarioId }) {
   try {
-    const statement = database.prepare(`
-      INSERT INTO guardia_horarios (usuario_id, horario_id)
-      VALUES (?, ?)
-    `);
-    statement.bind([usuarioId, horarioId]);
-    statement.step();
-    statement.free();
-    insertNotification({
-      userId: usuarioId,
-      titulo: 'Nueva asignación',
-      mensaje: `Se te asignó el horario ${horarioId}.`
+    const assignment = runInTransaction(() => {
+      const statement = database.prepare(`
+        INSERT INTO guardia_horarios (usuario_id, horario_id)
+        VALUES (?, ?)
+      `);
+      statement.bind([usuarioId, horarioId]);
+      statement.step();
+      statement.free();
+      insertNotification({
+        userId: usuarioId,
+        titulo: 'Nueva asignación',
+        mensaje: `Se te asignó el horario ${horarioId}.`
+      });
+      return findScheduleAssignment(usuarioId, horarioId);
     });
     saveDatabase();
-    return findScheduleAssignment(usuarioId, horarioId);
+    return assignment;
   } catch (error) {
     if (error.message.includes('UNIQUE constraint failed: guardia_horarios.usuario_id, guardia_horarios.horario_id')) {
       const duplicateError = new Error('El guardia ya está asignado a este horario.');
@@ -594,6 +619,29 @@ function findLocalById(id) {
   const local = statement.step() ? statement.getAsObject() : null;
   statement.free();
   return local;
+}
+
+function findMonthlyValue(serviceId, year, month) {
+  const statement = database.prepare(`
+    SELECT id, servicio_id, anio, mes, valor, updated_at
+    FROM valores_mensuales
+    WHERE servicio_id = ? AND anio = ? AND mes = ?
+  `);
+  statement.bind([serviceId, year, month]);
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return record;
+}
+
+function upsertMonthlyValue({ serviceId, year, month, value }) {
+  database.run(`
+    INSERT INTO valores_mensuales (servicio_id, anio, mes, valor, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT (servicio_id, anio, mes)
+    DO UPDATE SET valor = excluded.valor, updated_at = CURRENT_TIMESTAMP
+  `, [serviceId, year, month, value]);
+  saveDatabase();
+  return findMonthlyValue(serviceId, year, month);
 }
 
 function findLocalByName(nombre) {
@@ -753,18 +801,13 @@ function closeOperationalRecord({ id, horaEgreso, durationSeconds }) {
 }
 
 function deleteOperationalRecordsTransaction(ids) {
-  database.run('BEGIN');
   const deletedIds = [];
-  try {
+  runInTransaction(() => {
     for (const id of ids) {
       database.run('DELETE FROM registros_operativos WHERE id = ?', [id]);
       if (database.getRowsModified() > 0) deletedIds.push(id);
     }
-    database.run('COMMIT');
-  } catch (error) {
-    database.run('ROLLBACK');
-    throw error;
-  }
+  });
   if (deletedIds.length) saveDatabase();
   const deleted = new Set(deletedIds);
   return { deletedIds, notFoundIds: ids.filter((id) => !deleted.has(id)) };
@@ -994,6 +1037,8 @@ module.exports = {
   markNotificationsRead,
   listLocales,
   findLocalById,
+  findMonthlyValue,
+  upsertMonthlyValue,
   findLocalByName,
   insertLocal,
   updateLocalById,

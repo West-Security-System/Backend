@@ -1,0 +1,14 @@
+**/node_modules
+**/coverage
+.env
+**/.env
+.git
+**/.git
+*.tmp
+**/*.tmp
+*.swp
+**/*.swp
+*.log
+**/*.log
+.DS_Store
+**/.DS_Store

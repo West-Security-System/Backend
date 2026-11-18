@@ -1,11 +1,16 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const { randomBytes } = require('node:crypto');
 const net = require('node:net');
 const path = require('node:path');
 const fs = require('node:fs');
 
 const databasePath = path.join(__dirname, '..', 'data', `issue15-${process.pid}.db`);
+const credentials = {
+  admin: { username: `admin-${randomBytes(8).toString('hex')}`, password: randomBytes(18).toString('hex') },
+  guard: { username: `guard-${randomBytes(8).toString('hex')}`, password: randomBytes(18).toString('hex') }
+};
 let server;
 let baseUrl;
 let adminCookie;
@@ -40,7 +45,14 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, ['src/server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), DATABASE_PATH: databasePath, SESSION_SECRET: 'issue15-test-secret', ADMIN_USERNAME: 'issue15-admin', ADMIN_PASSWORD: 'issue15-password' },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATABASE_PATH: databasePath,
+      SESSION_SECRET: randomBytes(32).toString('hex'),
+      ADMIN_USERNAME: credentials.admin.username,
+      ADMIN_PASSWORD: credentials.admin.password
+    },
     stdio: 'ignore'
   });
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -48,13 +60,13 @@ before(async () => {
     try { if ((await fetch(`${baseUrl}/api/health`)).ok) break; } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  adminCookie = await login('issue15-admin', 'issue15-password');
+  adminCookie = await login(credentials.admin.username, credentials.admin.password);
   const guard = await request('/api/admin/usuarios', {
     method: 'POST', cookie: adminCookie,
-    body: { username: 'issue15-guard', password: 'guard-password', rol: 'guardia' }
+    body: { ...credentials.guard, rol: 'guardia' }
   });
   assert.equal(guard.response.status, 201);
-  guardCookie = await login('issue15-guard', 'guard-password');
+  guardCookie = await login(credentials.guard.username, credentials.guard.password);
   const local = await request('/api/admin/locales', {
     method: 'POST', cookie: adminCookie,
     body: { nombre: 'Issue15 local', latitud: -32.9, longitud: -68.8 }
