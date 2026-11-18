@@ -45,14 +45,14 @@ function isoTimestamp(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-function serialize(record) {
+function serializeRecord(record) {
   return { ...record, hora_ingreso: isoTimestamp(record.hora_ingreso), hora_egreso: isoTimestamp(record.hora_egreso) };
 }
 
 function getSummary(query, activeOnly = false) {
   const filters = normalizeFilters(query, activeOnly);
-  const registros = repository.list(filters).map(serialize);
+  const registros = repository.list(filters).map(serializeRecord);
   return { registros, limite: filters.limit };
 }
 
-module.exports = { getSummary };
+module.exports = { getSummary, serializeRecord };

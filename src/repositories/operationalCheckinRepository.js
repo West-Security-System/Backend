@@ -16,4 +16,12 @@ function findOpenEntry(userId) {
   return database.findOpenOperationalEntry(userId);
 }
 
-module.exports = { localExists, createEntry, closeEntry, findOpenEntry };
+function findEntryById(id) {
+  return database.findOperationalEntryById(id);
+}
+
+function closeEntryById(data) {
+  return database.closeOperationalEntryById(data);
+}
+
+module.exports = { localExists, createEntry, closeEntry, findOpenEntry, findEntryById, closeEntryById };

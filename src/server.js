@@ -107,6 +107,7 @@ app.use('/api/admin', require('./routes/adminOperationalRoutes'));
 app.use('/api', require('./routes/guardServicesRoutes'));
 app.use('/api', require('./routes/operationalCheckinRoutes'));
 app.use('/api', require('./routes/guardiasRoutes'));
+app.use('/api', require('./routes/operationalRecordsRoutes'));
 
 app.get('/api/health', (req, res) => {
   sendSuccess(res, {

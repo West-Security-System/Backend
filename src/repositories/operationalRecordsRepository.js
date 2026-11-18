@@ -1,7 +1,12 @@
 const { listOperationalRecords } = require('../db');
+const database = require('../db');
 
 function list(filters) {
   return listOperationalRecords(filters);
 }
 
-module.exports = { list };
+function listForUser(filters) {
+  return database.listOperationalRecordsForUser(filters);
+}
+
+module.exports = { list, listForUser };
