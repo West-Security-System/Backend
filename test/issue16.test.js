@@ -1,11 +1,21 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
+const { randomBytes } = require('node:crypto');
 const net = require('node:net');
 const path = require('node:path');
 const fs = require('node:fs');
 
 const databasePath = path.join(__dirname, '..', 'data', `issue16-${process.pid}.db`);
+const suffix = randomBytes(8).toString('hex');
+const credentials = {
+  admin: { username: `admin-${suffix}`, password: randomBytes(18).toString('hex') },
+  guard: { username: `guard-${suffix}`, password: randomBytes(18).toString('hex') },
+  temporary: { username: `temporary-${suffix}`, password: randomBytes(18).toString('hex') },
+  capacity: { username: `capacity-${suffix}`, password: randomBytes(18).toString('hex') },
+  invalid: randomBytes(18).toString('hex'),
+  wrong: randomBytes(18).toString('hex')
+};
 let server;
 let baseUrl;
 let adminCookie;
@@ -61,9 +71,9 @@ before(async () => {
       ...process.env,
       PORT: String(port),
       DATABASE_PATH: databasePath,
-      SESSION_SECRET: 'issue16-test-secret',
-      ADMIN_USERNAME: 'issue16-admin',
-      ADMIN_PASSWORD: 'issue16-password',
+      SESSION_SECRET: randomBytes(32).toString('hex'),
+      ADMIN_USERNAME: credentials.admin.username,
+      ADMIN_PASSWORD: credentials.admin.password,
       NODE_ENV: 'test'
     },
     stdio: 'ignore'
@@ -76,15 +86,15 @@ before(async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  adminCookie = await login('issue16-admin', 'issue16-password');
+  adminCookie = await login(credentials.admin.username, credentials.admin.password);
   const guard = await request('/api/admin/usuarios', {
     method: 'POST',
     cookie: adminCookie,
-    body: { username: 'issue16-guard', password: 'guard-password', rol: 'guardia' }
+    body: { ...credentials.guard, rol: 'guardia' }
   });
   assert.equal(guard.response.status, 201);
   guardId = guard.json.data.usuario.id;
-  guardCookie = await login('issue16-guard', 'guard-password');
+  guardCookie = await login(credentials.guard.username, credentials.guard.password);
 
   const service = await request('/api/admin/locales', {
     method: 'POST',
@@ -192,7 +202,7 @@ test('admin, guard services, schedule, block-date, locale, CORS and logout endpo
   assert.equal((await request('/api/login', { method: 'POST', body: {} })).response.status, 401);
   assert.equal((await request('/api/login', {
     method: 'POST',
-    body: { username: 'issue16-admin', password: 'wrong-password' }
+    body: { username: credentials.admin.username, password: credentials.wrong }
   })).response.status, 401);
   const users = await request('/api/admin/usuarios', { cookie: adminCookie });
   assert.equal(users.response.status, 200);
@@ -203,20 +213,20 @@ test('admin, guard services, schedule, block-date, locale, CORS and logout endpo
   const invalidRole = await request('/api/admin/usuarios', {
     method: 'POST',
     cookie: adminCookie,
-    body: { username: 'invalid-role', password: 'password', rol: 'root' }
+    body: { username: 'invalid-role', password: credentials.invalid, rol: 'root' }
   });
   assert.equal(invalidRole.response.status, 422);
   const duplicateUser = await request('/api/admin/usuarios', {
     method: 'POST',
     cookie: adminCookie,
-    body: { username: 'issue16-guard', password: 'password', rol: 'guardia' }
+    body: { username: credentials.guard.username, password: credentials.invalid, rol: 'guardia' }
   });
   assert.equal(duplicateUser.response.status, 409);
 
   const temporaryGuard = await request('/api/admin/usuarios', {
     method: 'POST',
     cookie: adminCookie,
-    body: { username: 'issue16-temporary', password: 'temporary-password', rol: 'guardia' }
+    body: { ...credentials.temporary, rol: 'guardia' }
   });
   assert.equal(temporaryGuard.response.status, 201);
   const temporaryGuardId = temporaryGuard.json.data.usuario.id;
@@ -263,7 +273,7 @@ test('admin, guard services, schedule, block-date, locale, CORS and logout endpo
   const capacityGuard = await request('/api/admin/usuarios', {
     method: 'POST',
     cookie: adminCookie,
-    body: { username: 'issue16-capacity', password: 'capacity-password', rol: 'guardia' }
+    body: { ...credentials.capacity, rol: 'guardia' }
   });
   const capacityAssignment = await request(`/api/admin/horarios/${scheduleId}/guardias`, {
     method: 'POST',
@@ -365,6 +375,6 @@ test('admin, guard services, schedule, block-date, locale, CORS and logout endpo
   })).response.status, 401);
   assert.equal((await request('/api/login', {
     method: 'POST',
-    body: { username: 'issue16-guard', password: 'guard-password' }
+    body: credentials.guard
   })).response.status, 200);
 });

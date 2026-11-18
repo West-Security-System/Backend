@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_PATH: /app/data/west_control.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - west_security_db_data:/app/data
+    restart: unless-stopped
+
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    command: ["tail", "-f", "/dev/null"]
+    volumes:
+      - west_security_db_data:/data
+    restart: unless-stopped
+
+volumes:
+  west_security_db_data:
