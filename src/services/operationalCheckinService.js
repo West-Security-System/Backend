@@ -38,4 +38,27 @@ function checkOut(userId, coordinates) {
   return record;
 }
 
-module.exports = { checkIn, checkOut };
+function checkOutById(user, rawId, coordinates) {
+  const entryId = Number(rawId);
+  if (!Number.isSafeInteger(entryId) || entryId <= 0) {
+    throw apiError(422, 'INVALID_RECORD_ID', 'El id del registro debe ser un entero positivo.', ['id']);
+  }
+  const entry = repository.findEntryById(entryId);
+  if (!entry) throw apiError(404, 'RECORD_NOT_FOUND', 'El registro operativo no existe.');
+  if (user.rol === 'guardia' && Number(entry.usuario_id) !== Number(user.id)) {
+    throw apiError(403, 'FORBIDDEN', 'No puedes cerrar un registro de otro guardia.');
+  }
+  if (entry.hora_egreso || entry.estado === 'cerrado') {
+    throw apiError(409, 'RECORD_ALREADY_CLOSED', 'El registro operativo ya está cerrado.');
+  }
+
+  const timestamp = new Date().toISOString();
+  const durationSeconds = calculateDurationSeconds(entry.hora_ingreso, timestamp);
+  const record = repository.closeEntryById({
+    id: entryId, userId: entry.usuario_id, ...coordinates, timestamp, durationSeconds
+  });
+  if (!record) throw apiError(409, 'RECORD_ALREADY_CLOSED', 'El registro operativo ya está cerrado.');
+  return record;
+}
+
+module.exports = { checkIn, checkOut, checkOutById };

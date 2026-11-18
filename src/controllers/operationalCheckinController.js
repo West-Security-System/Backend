@@ -18,4 +18,13 @@ function checkOut(req, res, next) {
   }
 }
 
-module.exports = { checkIn, checkOut };
+function checkOutById(req, res, next) {
+  try {
+    const registro = service.checkOutById(req.user, req.params.id, req.coordinates);
+    return res.json({ data: { registro }, error: null });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = { checkIn, checkOut, checkOutById };

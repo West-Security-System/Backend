@@ -149,13 +149,10 @@ async function initDatabase() {
 
 function ensureOperationalCoordinateColumns() {
   const columns = database.exec('PRAGMA table_info(registros_operativos)')[0].values.map((row) => row[1]);
-  const missingColumns = [
-    ['latitud_ingreso', 'REAL'],
-    ['longitud_ingreso', 'REAL'],
-    ['latitud_egreso', 'REAL'],
-    ['longitud_egreso', 'REAL']
-  ].filter(([name]) => !columns.includes(name));
-  for (const [name, type] of missingColumns) database.run(`ALTER TABLE registros_operativos ADD COLUMN ${name} ${type}`);
+  if (!columns.includes('latitud_ingreso')) database.run('ALTER TABLE registros_operativos ADD COLUMN latitud_ingreso REAL');
+  if (!columns.includes('longitud_ingreso')) database.run('ALTER TABLE registros_operativos ADD COLUMN longitud_ingreso REAL');
+  if (!columns.includes('latitud_egreso')) database.run('ALTER TABLE registros_operativos ADD COLUMN latitud_egreso REAL');
+  if (!columns.includes('longitud_egreso')) database.run('ALTER TABLE registros_operativos ADD COLUMN longitud_egreso REAL');
 }
 
 function ensureOperationalCheckinColumns() {
@@ -354,23 +351,19 @@ function replaceGuardBlockDates(userId, blockDates) {
 
 function findAssignmentsForUserInDates(userId, dates) {
   if (!Array.isArray(dates) || dates.length === 0) return [];
-  const placeholders = dates.map(() => '?').join(', ');
-  const statement = database.prepare(`
+  const rows = [];
+  for (const date of new Set(dates)) {
+    const statement = database.prepare(`
     SELECT id, usuario_id, fecha, motivo, created_at
     FROM guardia_asignaciones
-    WHERE usuario_id = ? AND fecha IN (${placeholders})
+    WHERE usuario_id = ? AND fecha = ?
     ORDER BY fecha ASC
   `);
-  const bindings = [userId, ...dates];
-  statement.bind(bindings);
-  const rows = [];
-
-  while (statement.step()) {
-    rows.push(statement.getAsObject());
+    statement.bind([userId, date]);
+    while (statement.step()) rows.push(statement.getAsObject());
+    statement.free();
   }
-
-  statement.free();
-  return rows;
+  return rows.sort((left, right) => left.fecha.localeCompare(right.fecha) || left.id - right.id);
 }
 
 function insertAssignment({ userId, fecha, motivo = 'asignado' }) {
@@ -617,36 +610,25 @@ function hasLocalRelations(localId) {
 }
 
 function listOperationalRecords(filters = {}) {
-  const conditions = [];
-  const values = [];
-  if (filters.localId !== undefined) {
-    conditions.push('r.local_id = ?');
-    values.push(filters.localId);
-  }
-  if (filters.userId !== undefined) {
-    conditions.push('r.usuario_id = ?');
-    values.push(filters.userId);
-  }
-  if (filters.from) {
-    conditions.push('datetime(r.hora_ingreso) >= datetime(?)');
-    values.push(filters.from);
-  }
-  if (filters.to) {
-    conditions.push('datetime(r.hora_ingreso) <= datetime(?)');
-    values.push(filters.to);
-  }
-  if (filters.activeOnly) conditions.push('r.hora_egreso IS NULL');
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const statement = database.prepare(`
     SELECT r.id, r.usuario_id, u.username, r.local_id, l.nombre AS local_nombre,
       r.horario_id, r.hora_ingreso, r.hora_egreso, r.duracion_segundos, r.estado, r.observaciones
     FROM registros_operativos r
     INNER JOIN usuarios u ON u.id = r.usuario_id
     INNER JOIN locales l ON l.id = r.local_id
-    ${where}
+    WHERE (? IS NULL OR r.local_id = ?)
+      AND (? IS NULL OR r.usuario_id = ?)
+      AND (? IS NULL OR datetime(r.hora_ingreso) >= datetime(?))
+      AND (? IS NULL OR datetime(r.hora_ingreso) <= datetime(?))
+      AND (? = 0 OR r.hora_egreso IS NULL)
     ORDER BY r.hora_ingreso DESC, r.id DESC LIMIT ?
   `);
-  statement.bind([...values, filters.limit]);
+  const localId = filters.localId ?? null;
+  const userId = filters.userId ?? null;
+  const from = filters.from ?? null;
+  const to = filters.to ?? null;
+  const activeOnly = Number(Boolean(filters.activeOnly));
+  statement.bind([localId, localId, userId, userId, from, from, to, to, activeOnly, filters.limit]);
   const records = [];
   while (statement.step()) records.push(statement.getAsObject());
   statement.free();
@@ -678,6 +660,48 @@ function findOpenOperationalEntry(userId) {
   const match = search.step() ? search.getAsObject() : null;
   search.free();
   return match;
+}
+
+function findOperationalEntryById(id) {
+  const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = ?');
+  statement.bind([id]);
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  return record;
+}
+
+function closeOperationalEntryById({ id, userId, latitud, longitud, timestamp, durationSeconds }) {
+  database.run(`
+    UPDATE registros_operativos
+    SET hora_egreso = ?, latitud_egreso = ?, longitud_egreso = ?, duracion_segundos = ?, estado = ?
+    WHERE id = ? AND usuario_id = ? AND hora_egreso IS NULL AND estado = ?
+  `, [timestamp, latitud, longitud, durationSeconds, 'cerrado', id, userId, 'abierto']);
+  if (database.getRowsModified() === 0) return null;
+  const statement = database.prepare('SELECT * FROM registros_operativos WHERE id = ? AND usuario_id = ?');
+  statement.bind([id, userId]);
+  const record = statement.step() ? statement.getAsObject() : null;
+  statement.free();
+  saveDatabase();
+  return record;
+}
+
+function listOperationalRecordsForUser({ userId, limit, offset }) {
+  const statement = database.prepare(`
+    SELECT r.id, r.usuario_id, u.username, r.local_id, l.nombre AS local_nombre,
+      r.horario_id, r.hora_ingreso, r.hora_egreso, r.latitud_ingreso, r.longitud_ingreso,
+      r.latitud_egreso, r.longitud_egreso, r.duracion_segundos, r.estado, r.observaciones
+    FROM registros_operativos r
+    INNER JOIN usuarios u ON u.id = r.usuario_id
+    INNER JOIN locales l ON l.id = r.local_id
+    WHERE r.usuario_id = ?
+    ORDER BY datetime(r.hora_ingreso) DESC, r.id DESC
+    LIMIT ? OFFSET ?
+  `);
+  statement.bind([userId, limit, offset]);
+  const records = [];
+  while (statement.step()) records.push(statement.getAsObject());
+  statement.free();
+  return records;
 }
 
 function closeOperationalEntry({
@@ -843,6 +867,9 @@ module.exports = {
   listGuardSchedules,
   insertOperationalEntry,
   findOpenOperationalEntry,
+  findOperationalEntryById,
+  closeOperationalEntryById,
+  listOperationalRecordsForUser,
   closeOperationalEntry,
   hasOpenOperationalEntry,
   findAssignedSchedule,
