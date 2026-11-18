@@ -720,6 +720,56 @@ function findOperationalRecordById(id) {
   return record;
 }
 
+function listOperationalCalendarRecords({ localId, from, to }) {
+  const statement = database.prepare(`
+    SELECT r.*, u.id AS guardia_id, u.username AS guardia_username, u.rol AS guardia_rol,
+      l.nombre AS local_nombre, l.latitud AS local_latitud, l.longitud AS local_longitud,
+      h.dias AS horario_dias, h.hora_inicio AS horario_hora_inicio,
+      h.hora_fin AS horario_hora_fin, h.capacidad AS horario_capacidad
+    FROM registros_operativos r
+    INNER JOIN usuarios u ON u.id = r.usuario_id
+    INNER JOIN locales l ON l.id = r.local_id
+    LEFT JOIN horarios h ON h.id = r.horario_id
+    WHERE r.local_id = ? AND datetime(r.hora_ingreso) >= datetime(?)
+      AND datetime(r.hora_ingreso) < datetime(?)
+    ORDER BY datetime(r.hora_ingreso) ASC, r.id ASC
+  `);
+  statement.bind([localId, from, to]);
+  const records = [];
+  while (statement.step()) records.push(statement.getAsObject());
+  statement.free();
+  return records;
+}
+
+function closeOperationalRecord({ id, horaEgreso, durationSeconds }) {
+  database.run(`
+    UPDATE registros_operativos
+    SET hora_egreso = ?, duracion_segundos = ?, estado = ?
+    WHERE id = ? AND hora_egreso IS NULL AND estado = ?
+  `, [horaEgreso, durationSeconds, 'cerrado', id, 'abierto']);
+  if (database.getRowsModified() === 0) return null;
+  saveDatabase();
+  return findOperationalRecordById(id);
+}
+
+function deleteOperationalRecordsTransaction(ids) {
+  database.run('BEGIN');
+  const deletedIds = [];
+  try {
+    for (const id of ids) {
+      database.run('DELETE FROM registros_operativos WHERE id = ?', [id]);
+      if (database.getRowsModified() > 0) deletedIds.push(id);
+    }
+    database.run('COMMIT');
+  } catch (error) {
+    database.run('ROLLBACK');
+    throw error;
+  }
+  if (deletedIds.length) saveDatabase();
+  const deleted = new Set(deletedIds);
+  return { deletedIds, notFoundIds: ids.filter((id) => !deleted.has(id)) };
+}
+
 function insertOperationalEntry({ userId, localId, scheduleId = null, latitud, longitud, timestamp = new Date().toISOString() }) {
   database.run(`
     INSERT INTO registros_operativos
@@ -951,6 +1001,9 @@ module.exports = {
   hasLocalRelations,
   listOperationalRecords,
   findOperationalRecordById,
+  listOperationalCalendarRecords,
+  closeOperationalRecord,
+  deleteOperationalRecordsTransaction,
   listGuardServices,
   findAssignedService,
   listGuardSchedules,

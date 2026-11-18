@@ -1,5 +1,6 @@
 const repository = require('../repositories/operationalRecordsRepository');
 const apiError = require('../utils/apiError');
+const { positiveInteger } = require('../utils/operationalValidation');
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
@@ -15,13 +16,6 @@ function normalizeDate(value, field, endOfDay = false) {
   }
   if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) throw apiError(422, 'INVALID_DATE', `${field} debe usar formato ISO 8601.`, [field]);
   return parsed.toISOString();
-}
-
-function positiveInteger(value, field) {
-  if (value === undefined) return undefined;
-  const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < 1) throw apiError(422, 'INVALID_FILTER', `${field} debe ser un entero positivo.`, [field]);
-  return number;
 }
 
 function aliasedInteger(primary, alias, field) {
